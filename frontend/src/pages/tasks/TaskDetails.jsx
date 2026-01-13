@@ -33,6 +33,7 @@ const TaskDetails = () => {
   const [task, setTask] = useState(null);
   const [activities, setActivities] = useState([]);
   const [projectMembers, setProjectMembers] = useState([]);
+  const [memberStatuses, setMemberStatuses] = useState({}); // Track availability
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null); // 👈 Tracks access errors
 
@@ -84,6 +85,26 @@ const TaskDetails = () => {
     };
     fetchData();
   }, [taskId]);
+
+  // Fetch member availability statuses
+  useEffect(() => {
+    const fetchStatuses = async () => {
+      const statusMap = {};
+      for (const member of projectMembers) {
+        try {
+          const res = await api.get(`/users/${member.clerkId}/status`);
+          statusMap[member.clerkId] = res.data.status;
+        } catch {
+          statusMap[member.clerkId] = "active"; // Default to active if fetch fails
+        }
+      }
+      setMemberStatuses(statusMap);
+    };
+
+    if (projectMembers.length > 0) {
+      fetchStatuses();
+    }
+  }, [projectMembers]);
 
   // 2. Socket Listeners
   useEffect(() => {
@@ -847,6 +868,7 @@ const TaskDetails = () => {
                     <div className="absolute top-full left-0 mt-2 w-full bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl z-20 p-1">
                       {projectMembers
                         .filter((m) => !task.assignees?.includes(m.clerkId))
+                        .filter((m) => memberStatuses[m.clerkId] !== "on_leave") // Hide on-leave members
                         .map((m) => (
                           <div
                             key={m.clerkId}
@@ -862,6 +884,13 @@ const TaskDetails = () => {
                             </span>
                           </div>
                         ))}
+                      {projectMembers
+                        .filter((m) => !task.assignees?.includes(m.clerkId))
+                        .filter((m) => memberStatuses[m.clerkId] !== "on_leave").length === 0 && (
+                        <div className="px-3 py-2 text-sm text-neutral-500 text-center">
+                          No available members
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

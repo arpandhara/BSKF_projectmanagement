@@ -19,8 +19,11 @@ export const connectSocket = (userId) => {
 
     // 2. Listen for connect event to join (handles first load & reconnects)
     socket.on("connect", () => {
-    //   console.log("✅ Socket Connected (ID:", socket.id, ")");
-      if (userId) socket.emit("setup", { userId });
+      console.log("✅ Socket Connected (ID:", socket.id, ")");
+      if (userId) {
+        socket.emit("setup", { userId });
+        console.log("📤 Socket: Emitted setup for userId:", userId);
+      }
     });
 
     socket.on("connect_error", (err) => {

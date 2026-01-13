@@ -116,6 +116,11 @@ export const clerkWebhook = async (req, res) => {
       const userId = data.public_user_data?.user_id;
       const orgRole = data.role; // e.g., "org:admin" or "org:member"
 
+      // Extract orgId from multiple possible locations in payload
+      const orgId = data.organization?.id || data.organization_id || data.org_id;
+
+      console.log(`📥 Webhook: ${eventType} - User: ${userId}, OrgId: ${orgId}, Role: ${orgRole}`);
+
       // Determine Global Role based on Org Role
       const newGlobalRole = (orgRole === "org:admin") ? "admin" : "member";
 
@@ -131,13 +136,12 @@ export const clerkWebhook = async (req, res) => {
         // 3. Notify Team List to Update
         const io = req.app.get("io");
         if (io) {
-          const orgId = data.organization?.id;
           console.log(`🔔 Webhook: Attempting to emit team:update to org_${orgId}`);
           if (orgId) {
             io.to(`org_${orgId}`).emit("team:update");
             console.log(`✅ Webhook: Emitted team:update to org_${orgId}`);
           } else {
-            console.log("❌ Webhook: Org ID missing for team:update");
+            console.log(`❌ Webhook: Org ID missing for team:update. Full data:`, JSON.stringify(data, null, 2));
           }
         } else {
           console.log("❌ Webhook: Socket IO instance not found on req.app");
@@ -219,6 +223,27 @@ export const clerkWebhook = async (req, res) => {
     } catch (error) {
       console.error("❌ Error syncing organization deletion:", error);
       return res.status(500).json({ message: "Database error" });
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // 4. INVITATION EVENTS (For Pending Invites Count)
+  // ------------------------------------------------------------------
+  else if (eventType === "organizationInvitation.created" || eventType === "organizationInvitation.revoked") {
+    try {
+      const orgId = data.organization_id || data.organization?.id;
+
+      if (orgId) {
+        // Notify Team List to Update (re-fetch members & pending count)
+        const io = req.app.get("io");
+        if (io) {
+          console.log(`🔔 Webhook: Invitation event (${eventType}) for org_${orgId}`);
+          io.to(`org_${orgId}`).emit("team:update");
+        }
+      }
+    } catch (error) {
+      console.error("❌ Error processing invitation event:", error);
+      // Don't return error to Clerk, just log it, as this is non-critical for data integrity
     }
   }
 

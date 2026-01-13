@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import InviteMemberModal from "../../components/specific/InviteMemberModal";
 import { getSocket } from "../../services/socket";
 import PageTransition from "../../components/common/PageTransition";
+import api from "../../services/api";
 
 const TeamList = () => {
   const { organization, isLoaded } = useOrganization();
@@ -19,6 +20,12 @@ const TeamList = () => {
 
   // Local state to hold members, allowing manual refreshes via socket
   const [members, setMembers] = useState([]);
+  
+  // Track member availability status
+  const [memberStatus, setMemberStatus] = useState({}); // { userId: "active" | "on_leave" }
+
+  // Ref to track last granular update time
+  const lastStatusUpdateRef = React.useRef(0);
 
   // 1. Function to fetch members manually
   const fetchMembers = async () => {
@@ -45,23 +52,92 @@ const TeamList = () => {
     }
   }, [isLoaded, organization]);
 
+  // Fetch member statuses
+  const fetchMemberStatuses = async () => {
+    if (!members.length) return;
+    
+    try {
+      const statusPromises = members.map(mem => 
+        api.get(`/users/${mem.publicUserData.userId}/status`).catch(() => ({ data: { status: "active" } }))
+      );
+      const statuses = await Promise.all(statusPromises);
+      
+      const statusMap = {};
+      members.forEach((mem, idx) => {
+        statusMap[mem.publicUserData.userId] = statuses[idx]?.data?.status || "active";
+      });
+      
+      setMemberStatus(statusMap);
+    } catch (error) {
+      console.error("Failed to fetch member statuses", error);
+    }
+  };
+
+  // Fetch statuses when members change
+  useEffect(() => {
+    fetchMemberStatuses();
+  }, [members]);
+
   // 3. Socket Listener
   useEffect(() => {
     const socket = getSocket();
     if (!socket || !organization) return;
 
     // Explicitly join the org room to ensure updates are received
-    socket.emit("join_org", organization.id);
+    const joinRoom = () => {
+      console.log(`🔌 Joining org room: org_${organization.id}`);
+      socket.emit("join_org", organization.id);
+    };
+    
+    joinRoom();
 
-    const handleTeamUpdate = () => {
-      console.log("🚀 Frontend: Team update received via socket. Refreshing list...");
+    // Re-join on reconnect
+    socket.on("connect", joinRoom);
+    
+    const handleTeamUpdate = async () => {
+      // 🛑 OPTIMIZATION: If we just received a granular update (< 2s ago), ignore this full refresh
+      if (Date.now() - lastStatusUpdateRef.current < 2000) {
+        console.log("✋ Skipping team:update because granular status update was handled recently.");
+        return;
+      }
+      
+      console.log("🚀 Frontend: Team update received via socket. Refreshing list & org details...");
       fetchMembers();
+      if (organization?.reload) {
+        await organization.reload();
+      }
     };
 
+    // Listen for user status changes
+    const handleStatusChange = ({ userId, status, userName }) => {
+      console.log(`🔴🟢 INSTANT STATUS UPDATE: User ${userName} (${userId}) → ${status}`);
+      
+      // Update the Ref timestamp
+      lastStatusUpdateRef.current = Date.now();
+      
+      setMemberStatus(prev => {
+        const updated = { ...prev, [userId]: status };
+        return updated;
+      });
+    };
+
+    console.log(`🔌 Frontend: Registering team:update listener for org: ${organization.id}`);
+
     socket.on("team:update", handleTeamUpdate);
+    socket.on("user:status_changed", handleStatusChange);
+    
+    console.log(`✅ Socket listeners registered: team:update, user:status_changed`);
+    
+    // Test if socket is receiving events by listening to ALL events temporarily
+    const testHandler = (eventName, ...args) => {
+      console.log(`🧪 Received socket event: ${eventName}`, args);
+    };
+    socket.onAny(testHandler);
 
     return () => {
       socket.off("team:update", handleTeamUpdate);
+      socket.off("user:status_changed", handleStatusChange);
+      socket.offAny(testHandler);
     };
   }, [organization]);
 
@@ -168,8 +244,9 @@ const TeamList = () => {
         {/* Team Table */}
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
           <div className="grid grid-cols-12 gap-4 p-4 border-b border-neutral-800 text-xs font-bold text-neutral-500 uppercase tracking-wider">
-            <div className="col-span-4">Name</div>
-            <div className="col-span-5">Email</div>
+            <div className="col-span-3">Name</div>
+            <div className="col-span-4">Email</div>
+            <div className="col-span-2">Status</div>
             <div className="col-span-3 text-right">Role</div>
           </div>
 
@@ -181,7 +258,7 @@ const TeamList = () => {
                 onClick={() => navigate(`/team/${mem.publicUserData.userId}`)}
                 className="grid grid-cols-12 gap-4 p-4 border-b border-neutral-800/50 hover:bg-neutral-800/50 transition-colors items-center text-sm last:border-0 cursor-pointer"
               >
-                <div className="col-span-4 flex items-center gap-3">
+                <div className="col-span-3 flex items-center gap-3">
                   <img
                     src={mem.publicUserData.imageUrl}
                     alt={mem.publicUserData.firstName}
@@ -196,8 +273,24 @@ const TeamList = () => {
                     )}
                   </span>
                 </div>
-                <div className="col-span-5 text-neutral-400">
+                <div className="col-span-4 text-neutral-400">
                   {mem.publicUserData.identifier}
+                </div>
+                <div className="col-span-2">
+                  <span
+                    className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full font-medium ${
+                      memberStatus[mem.publicUserData.userId] === "on_leave"
+                        ? "bg-red-500/20 text-red-400"
+                        : "bg-green-500/20 text-green-400"
+                    }`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      memberStatus[mem.publicUserData.userId] === "on_leave" 
+                        ? "bg-red-500" 
+                        : "bg-green-500"
+                    }`}></span>
+                    {memberStatus[mem.publicUserData.userId] === "on_leave" ? "On Leave" : "Active"}
+                  </span>
                 </div>
                 <div className="col-span-3 text-right">
                   <span

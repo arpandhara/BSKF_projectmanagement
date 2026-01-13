@@ -2,32 +2,37 @@ import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema(
   {
-    clerkId: { 
-      type: String, 
-      required: true, 
-      unique: true 
+    clerkId: {
+      type: String,
+      required: true,
+      unique: true
     },
-    email: { 
-      type: String, 
-      required: true, 
-      unique: true 
+    email: {
+      type: String,
+      required: true,
+      unique: true
     },
-    username: { 
-      type: String 
+    username: {
+      type: String
     },
-    photo: { 
-      type: String 
+    photo: {
+      type: String
     },
-    firstName: { 
-      type: String 
+    firstName: {
+      type: String
     },
-    lastName: { 
-      type: String 
+    lastName: {
+      type: String
     },
     role: {
       type: String,
       enum: ["admin", "member", "viewer"],
       default: "member", // Default role for new users
+    },
+    availabilityStatus: {
+      type: String,
+      enum: ["active", "on_leave"],
+      default: "active",
     },
   },
   { timestamps: true }

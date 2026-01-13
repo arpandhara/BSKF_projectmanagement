@@ -41,4 +41,14 @@ router.put('/mark-read', requireAuth, async (req, res) => {
   }
 });
 
+// Clear All (Delete All)
+router.delete('/', requireAuth, async (req, res) => {
+  try {
+    await Notification.deleteMany({ userId: req.auth.userId });
+    res.json({ message: "All notifications cleared" });
+  } catch (error) {
+    res.status(500).json({ message: "Error clearing notifications" });
+  }
+});
+
 export default router;

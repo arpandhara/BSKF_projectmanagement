@@ -13,26 +13,28 @@ const initializeSocket = (httpServer) => {
   });
 
   io.on("connection", (socket) => {
-    // console.log("🔌 Connected to socket:", socket.id);
+    console.log("🔌 Socket connected:", socket.id);
 
     // 1. User Room
     socket.on("setup", (userData) => {
       if (userData?.userId) {
         socket.join(`user_${userData.userId}`);
         socket.emit("connected");
+        console.log(`✅ Socket ${socket.id} joined User Room: user_${userData.userId}`);
       }
     });
 
     // 2. Project Room
     socket.on("join_project", (room) => {
       socket.join(room);
+      console.log(`✅ Socket ${socket.id} joined Project Room: ${room}`);
     });
 
     // 3. ⭐ NEW: Organization Room (For project lists/team updates)
     socket.on("join_org", (orgId) => {
       if (orgId) {
         socket.join(`org_${orgId}`);
-        console.log(`🔌 Socket ${socket.id} joined Org Room: org_${orgId}`);
+        console.log(`✅ Socket ${socket.id} joined Org Room: org_${orgId}`);
       }
     });
 

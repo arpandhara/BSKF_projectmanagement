@@ -20,6 +20,9 @@ const NewTaskModal = ({ isOpen, onClose, projectId, projectMembers = [], onTaskC
   // Assignee Dropdown UI State
   const [isAssigneeDropdownOpen, setIsAssigneeDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
+  
+  // Track member availability statuses
+  const [memberStatuses, setMemberStatuses] = useState({});
 
   // Reset form on open
   useEffect(() => {
@@ -34,8 +37,26 @@ const NewTaskModal = ({ isOpen, onClose, projectId, projectMembers = [], onTaskC
         assignees: []
       });
       setIsAssigneeDropdownOpen(false);
+      
+      // Fetch member statuses
+      const fetchStatuses = async () => {
+        const statusMap = {};
+        for (const member of projectMembers) {
+          try {
+            const res = await api.get(`/users/${member.clerkId}/status`);
+            statusMap[member.clerkId] = res.data.status;
+          } catch {
+            statusMap[member.clerkId] = "active"; // Default to active if fetch fails
+          }
+        }
+        setMemberStatuses(statusMap);
+      };
+      
+      if (projectMembers.length > 0) {
+        fetchStatuses();
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, projectMembers]);
 
   // Click outside to close dropdown
   useEffect(() => {
@@ -180,27 +201,32 @@ const NewTaskModal = ({ isOpen, onClose, projectId, projectMembers = [], onTaskC
             {isAssigneeDropdownOpen && (
               <div className="absolute z-10 w-full mt-1 bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl max-h-48 overflow-y-auto">
                 {projectMembers.length > 0 ? (
-                  projectMembers.map((member) => (
-                    <div
-                      key={member.clerkId}
-                      onClick={() => toggleAssignee(member.clerkId)}
-                      className="flex items-center gap-3 px-3 py-2 hover:bg-neutral-800 cursor-pointer transition-colors"
-                    >
-                      <div className={`w-4 h-4 rounded border flex items-center justify-center ${
-                        formData.assignees.includes(member.clerkId) 
-                          ? "bg-blue-600 border-blue-600" 
-                          : "border-neutral-600"
-                      }`}>
-                        {formData.assignees.includes(member.clerkId) && <Check size={12} className="text-white" />}
+                  projectMembers
+                    .filter(member => memberStatuses[member.clerkId] !== "on_leave") // Hide on-leave members
+                    .map((member) => (
+                      <div
+                        key={member.clerkId}
+                        onClick={() => toggleAssignee(member.clerkId)}
+                        className="flex items-center gap-3 px-3 py-2 hover:bg-neutral-800 cursor-pointer transition-colors"
+                      >
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center ${
+                          formData.assignees.includes(member.clerkId) 
+                            ? "bg-blue-600 border-blue-600" 
+                            : "border-neutral-600"
+                        }`}>
+                          {formData.assignees.includes(member.clerkId) && <Check size={12} className="text-white" />}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <img src={member.photo} className="w-5 h-5 rounded-full" alt="" />
+                          <span className="text-sm text-white">{member.firstName} {member.lastName}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <img src={member.photo} className="w-5 h-5 rounded-full" alt="" />
-                        <span className="text-sm text-white">{member.firstName} {member.lastName}</span>
-                      </div>
-                    </div>
-                  ))
+                    ))
                 ) : (
                   <div className="px-3 py-2 text-sm text-neutral-500">No members in project</div>
+                )}
+                {projectMembers.filter(m => memberStatuses[m.clerkId] !== "on_leave").length === 0 && projectMembers.length > 0 && (
+                  <div className="px-3 py-2 text-sm text-neutral-500">All members are on leave</div>
                 )}
               </div>
             )}

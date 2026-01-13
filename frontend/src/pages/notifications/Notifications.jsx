@@ -146,9 +146,28 @@ const Notifications = () => {
 
         {/* User Notifications */}
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-            <Bell size={18} /> Inbox
-          </h2>
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+              <Bell size={18} /> Inbox
+            </h2>
+            {userNotifications.length > 0 && (
+              <button
+                onClick={async () => {
+                  if (!window.confirm("Clear all notifications?")) return;
+                  try {
+                    await api.delete("/notifications");
+                    setUserNotifications([]);
+                    window.dispatchEvent(new Event("notificationUpdate"));
+                  } catch (error) {
+                    console.error("Failed to clear", error);
+                  }
+                }}
+                className="text-xs text-neutral-400 hover:text-red-400 transition-colors flex items-center gap-1"
+              >
+                <Trash2 size={14} /> Clear All
+              </button>
+            )}
+          </div>
           {userNotifications.length === 0 ? (
             <p className="text-neutral-500 text-sm italic">No new messages.</p>
           ) : (

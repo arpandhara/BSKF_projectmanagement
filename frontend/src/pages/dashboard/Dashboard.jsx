@@ -16,6 +16,8 @@ const Dashboard = () => {
   const [projects, setProjects] = useState([]);
   const [myTasks, setMyTasks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [userStatus, setUserStatus] = useState("active"); // New: Track user availability status
+  const [statusLoading, setStatusLoading] = useState(false);
 
   const containerRef = useRef(null);
 
@@ -60,6 +62,43 @@ const Dashboard = () => {
     }
   }, [orgId, navigate]);
 
+  // Fetch user's availability status
+  const fetchUserStatus = async () => {
+    if (!user?.id) return;
+    try {
+      const res = await api.get(`/users/${user.id}/status`);
+      setUserStatus(res.data.status);
+    } catch (error) {
+      console.error("Failed to fetch user status", error);
+    }
+  };
+
+  // Toggle availability status
+  const handleStatusToggle = async () => {
+    // Optimistic Update: Switch immediately
+    const oldStatus = userStatus;
+    const newStatus = userStatus === "active" ? "on_leave" : "active";
+    
+    setUserStatus(newStatus); // Update UI instantly
+    setStatusLoading(true); // Disable button processing
+
+    try {
+      await api.put("/users/status", { 
+        status: newStatus,
+        orgId: orgId // Pass orgId so backend can find admins
+      });
+      
+      const statusText = newStatus === "on_leave" ? "On Leave" : "Active";
+      console.log(`✅ Status changed to: ${statusText}`);
+    } catch (error) {
+      console.error("Failed to update status", error);
+      setUserStatus(oldStatus); // Revert on failure
+      alert("Failed to update status. Please try again.");
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+
   const fetchProjects = async () => {
     try {
       const response = await api.get("/projects", {
@@ -86,7 +125,7 @@ const Dashboard = () => {
 
     const initData = async () => {
       setLoading(true);
-      await Promise.all([fetchProjects(), fetchMyTasks()]);
+      await Promise.all([fetchProjects(), fetchMyTasks(), fetchUserStatus()]);
       setLoading(false);
     };
 
@@ -150,12 +189,38 @@ const Dashboard = () => {
             </p>
           </div>
 
-          <button
-            onClick={() => navigate("/settings")}
-            className="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors border border-neutral-700"
-          >
-            My Profile
-          </button>
+          <div className="flex items-center gap-3">
+            {/* Availability Status Toggle */}
+            <div className="flex items-center gap-3 bg-neutral-900 border border-neutral-800 px-4 py-2 rounded-lg">
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${userStatus === "active" ? "bg-green-500" : "bg-red-500"}`}></div>
+                <span className="text-sm font-medium">
+                  {userStatus === "active" ? "Active" : "On Leave"}
+                </span>
+              </div>
+              <button
+                onClick={handleStatusToggle}
+                disabled={statusLoading}
+                className={`relative w-11 h-6 rounded-full transition-colors ${
+                  userStatus === "active" ? "bg-green-600" : "bg-red-600"
+                } ${statusLoading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                title={`Currently ${userStatus === "active" ? "Active" : "On Leave"}. Click to toggle.`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+                    userStatus === "active" ? "translate-x-0" : "translate-x-5"
+                  }`}
+                ></span>
+              </button>
+            </div>
+
+            <button
+              onClick={() => navigate("/settings")}
+              className="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors border border-neutral-700"
+            >
+              My Profile
+            </button>
+          </div>
         </div>
 
         {/* Stats Grid */}
