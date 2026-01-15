@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useOrganization, useUser } from "@clerk/clerk-react";
+import { useOrganization, useUser, useAuth } from "@clerk/clerk-react";
 import {
   Shield,
   Trash2,
@@ -18,6 +18,7 @@ const MemberDetails = () => {
   // Clerk hooks
   const { organization, isLoaded } = useOrganization();
   const { user: currentUser } = useUser();
+  const { orgRole } = useAuth(); // Added to get current user's org role
 
   // State
   const [projects, setProjects] = useState([]);
@@ -60,9 +61,7 @@ const MemberDetails = () => {
       setTasks(resTasks.data);
 
       // Get Admin Requests (Only if I am looking at this page as an admin)
-      // Note: We check if *currentUser* is admin inside the render or via a safe check here
-      const iAmAdmin = currentUser?.publicMetadata?.role === "admin" || 
-                       organization.membership?.role === "org:admin";
+      const iAmAdmin = orgRole === "org:admin";
       
       if (iAmAdmin) {
           const resRequests = await api.get("/admin-actions/pending", { 
@@ -159,7 +158,7 @@ const MemberDetails = () => {
   if (!currentMember) return <div className="p-8 text-red-400">Member not found in this organization.</div>;
 
   // Permissions
-  const iAmAdmin = organization?.membership?.role === "org:admin" || currentUser?.publicMetadata?.role === "admin";
+  const iAmAdmin = orgRole === "org:admin";
   const targetIsAdmin = currentMember.role === "org:admin";
   const isMe = userId === currentUser?.id;
 

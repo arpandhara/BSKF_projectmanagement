@@ -45,8 +45,7 @@ const ProjectDetails = () => {
     assignee: "All",
   });
 
-  const isAdmin =
-    user?.publicMetadata?.role === "admin" || orgRole === "org:admin";
+  const isAdmin = orgRole === "org:admin";
 
   // Initial Data Fetch
   const fetchData = async () => {
@@ -71,10 +70,15 @@ const ProjectDetails = () => {
   // SOCKET: Listen for Live Updates
   useEffect(() => {
     const socket = getSocket();
-    if (!socket) return;
+    if (!socket || !project) return;
 
     // Join this project's room
     socket.emit("join_project", `project_${id}`);
+
+    // Join organization room to listen for team updates
+    if (project.orgId) {
+      socket.emit("join_org", project.orgId);
+    }
 
     // Define handlers
     const handleTaskCreated = (newTask) => {
@@ -103,21 +107,70 @@ const ProjectDetails = () => {
       setMembers((prev) => prev.filter((m) => m.clerkId !== removedUserId));
     };
 
+    // Handle team updates (when members are removed from org)
+    const handleTeamUpdate = async () => {
+      console.log("👥 Team update received, refreshing member list...");
+      try {
+        const memRes = await api.get(`/projects/${id}/members`);
+        setMembers(memRes.data);
+      } catch (error) {
+        console.error("Failed to refresh members:", error);
+      }
+    };
+
+    // NEW: Remove member from project (admin only)
+    // MOVED OUTSIDE USEEFFECT
+    /*
+    const handleRemoveMember = async (memberId) => {
+      if (!window.confirm("Remove this member from the project? They will be removed from all tasks.")) return;
+
+      try {
+        await api.delete(`/projects/${id}/members/${memberId}`);
+        // Update will come via socket, but optimistic update for faster UI
+        setMembers((prev) => prev.filter((m) => m.clerkId !== memberId));
+      } catch (error) {
+        console.error("Failed to remove member", error);
+        alert("Failed to remove member");
+      }
+    };
+    */
+
+    // 🆕 NEW: Handle team updates (when members are removed from org)
+
     // Attach listeners
     socket.on("task:created", handleTaskCreated);
     socket.on("task:updated", handleTaskUpdated);
     socket.on("task:deleted", handleTaskDeleted);
     socket.on("project:member_removed", handleProjectMemberRemoved);
+    socket.on("team:update", handleTeamUpdate);
 
     // Cleanup: Leave room on unmount
     return () => {
       socket.emit("leave_project", `project_${id}`);
+      if (project.orgId) {
+        // Note: We don't explicitly leave the org room as it's needed elsewhere
+      }
       socket.off("task:created", handleTaskCreated);
       socket.off("task:updated", handleTaskUpdated);
       socket.off("task:deleted", handleTaskDeleted);
       socket.off("project:member_removed", handleProjectMemberRemoved);
+      socket.off("team:update", handleTeamUpdate);
     };
-  }, [id, user.id]);
+  }, [id, user.id, project]);
+
+  // NEW: Remove member from project (admin only)
+  const handleRemoveMember = async (memberId) => {
+    if (!window.confirm("Remove this member from the project? They will be removed from all tasks.")) return;
+
+    try {
+      await api.delete(`/projects/${id}/members/${memberId}`);
+      // Update will come via socket, but optimistic update for faster UI
+      setMembers((prev) => prev.filter((m) => m.clerkId !== memberId));
+    } catch (error) {
+      console.error("Failed to remove member", error);
+      alert("Failed to remove member");
+    }
+  };
 
   const handleAddMember = async (e) => {
     e.preventDefault();
@@ -242,13 +295,23 @@ const ProjectDetails = () => {
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex -space-x-2 overflow-hidden">
               {members.map((mem) => (
-                <img
-                  key={mem._id || mem.clerkId}
-                  src={mem.photo}
-                  alt={mem.firstName}
-                  title={`${mem.firstName} ${mem.lastName}`}
-                  className="inline-block h-10 w-10 rounded-full ring-2 ring-neutral-900 bg-neutral-800 object-cover"
-                />
+                <div key={mem._id || mem.clerkId} className="relative group">
+                  <img
+                    src={mem.photo}
+                    alt={mem.firstName}
+                    title={`${mem.firstName} ${mem.lastName}`}
+                    className="inline-block h-10 w-10 rounded-full ring-2 ring-neutral-900 bg-neutral-800 object-cover"
+                  />
+                  {isAdmin && (
+                    <button
+                      onClick={() => handleRemoveMember(mem.clerkId)}
+                      className="absolute -top-1 -right-1 bg-red-500 hover:bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Remove from project"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
               ))}
               {members.length === 0 && (
                 <span className="text-sm text-neutral-500">No members yet</span>

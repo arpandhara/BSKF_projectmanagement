@@ -9,22 +9,15 @@ const requireAuth = ClerkExpressRequireAuth({
 const requireRole = (allowedRoles) => {
   return (req, res, next) => {
     const auth = req.auth;
-    
-    // 👇 1. Check for Organization Role (e.g., 'org:admin')
-    const orgRole = auth.orgRole || auth.sessionClaims?.org_role;
 
-    // 👇 2. Check for Personal Admin Role (e.g., 'admin')
-    const personalRole = auth.sessionClaims?.publicMetadata?.role;
+    // Extract Organization Role from Clerk
+    // Clerk stores it in sessionClaims.o.rol as "admin" or "member"
+    const orgRole = auth?.sessionClaims?.o?.rol;
 
-    // 👇 3. Determine Effective Role (Prioritize Org, then Personal, then Viewer)
-    const effectiveRole = orgRole || personalRole || 'viewer';
-
-    // Debugging Log
-    // console.log(`🔐 Auth Check | User: ${auth.userId} | Role Found: ${effectiveRole}`);
-
-    if (!allowedRoles.includes(effectiveRole)) {
-      return res.status(403).json({ 
-        message: `Access Denied. Required role: ${allowedRoles.join(' or ')}. You are: ${effectiveRole}` 
+    // Check if user's orgRole is in the allowed list
+    if (!orgRole || !allowedRoles.includes(orgRole)) {
+      return res.status(403).json({
+        message: "Insufficient permissions. Admin access required."
       });
     }
 
@@ -33,6 +26,6 @@ const requireRole = (allowedRoles) => {
 };
 
 export {
-    requireAuth,
-    requireRole
+  requireAuth,
+  requireRole
 }

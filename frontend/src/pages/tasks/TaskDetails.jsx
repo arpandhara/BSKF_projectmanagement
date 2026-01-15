@@ -57,8 +57,7 @@ const TaskDetails = () => {
   const assigneeRef = useRef(null);
   const inviteRef = useRef(null);
 
-  const isAdmin =
-    user?.publicMetadata?.role === "admin" || orgRole === "org:admin";
+  const isAdmin = orgRole === "org:admin";
   const isAssignee = task?.assignees?.includes(user?.id);
 
   // 1. Fetch Data
@@ -115,6 +114,11 @@ const TaskDetails = () => {
       typeof task.projectId === "string" ? task.projectId : task.projectId._id;
     socket.emit("join_project", `project_${projectId}`);
 
+    // Join organization room if available
+    if (task.projectId?.orgId) {
+      socket.emit("join_org", task.projectId.orgId);
+    }
+
     const handleTaskUpdated = (updatedTask) => {
       if (updatedTask._id === taskId) {
         setTask((prev) => ({ ...updatedTask, projectId: prev.projectId }));
@@ -127,12 +131,28 @@ const TaskDetails = () => {
       }
     };
 
+    // 🆕 NEW: Handle team updates (when members are removed from org)
+    const handleTeamUpdate = async () => {
+      console.log("👥 Team update received in TaskDetails, refreshing members...");
+      try {
+        if (task.projectId) {
+          const pid = task.projectId._id || task.projectId;
+          const memRes = await api.get(`/projects/${pid}/members`);
+          setProjectMembers(memRes.data);
+        }
+      } catch (error) {
+        console.error("Failed to refresh members:", error);
+      }
+    };
+
     socket.on("task:updated", handleTaskUpdated);
     socket.on("task:activity", handleNewActivity);
+    socket.on("team:update", handleTeamUpdate);
 
     return () => {
       socket.off("task:updated", handleTaskUpdated);
       socket.off("task:activity", handleNewActivity);
+      socket.off("team:update", handleTeamUpdate);
     };
   }, [taskId, task?.projectId]);
 

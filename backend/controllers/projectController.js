@@ -15,8 +15,17 @@ const getProjects = async (req, res) => {
     let query;
     const targetUserId = req.query.userId || userId;
 
+    // Check for admin role
+    const orgRole = req.auth?.sessionClaims?.o?.rol;
+
     if (orgId && orgId !== "undefined" && orgId !== "null") {
-      query = { orgId, members: targetUserId };
+      if (orgRole === "admin") {
+        // Admins see all projects in the organization
+        query = { orgId };
+      } else {
+        // Members see only projects they are part of
+        query = { orgId, members: targetUserId };
+      }
     } else {
       query = {
         ownerId: userId,
@@ -72,6 +81,13 @@ const createProject = async (req, res) => {
     });
 
     const createdProject = await project.save();
+
+    // Broadcast valid creation
+    const io = req.app.get("io");
+    if (io && orgId) {
+      io.to(`org_${orgId}`).emit("project:created", createdProject);
+    }
+
     res.status(201).json(createdProject);
   } catch (error) {
     console.error(error);
@@ -96,27 +112,27 @@ const deleteProject = async (req, res) => {
 
     // From Task Attachments
     tasks.forEach(task => {
-        task.attachments?.forEach(att => {
-            if(att.url) fileDeletePromises.push(deleteFileFromUrl(att.url));
-        });
+      task.attachments?.forEach(att => {
+        if (att.url) fileDeletePromises.push(deleteFileFromUrl(att.url));
+      });
     });
 
     // From Activities
     const activities = await Activity.find({ taskId: { $in: taskIds } });
-    
+
     activities.forEach(act => {
-        if (act.type === 'UPLOAD' && act.metadata?.fileUrl) {
-            fileDeletePromises.push(deleteFileFromUrl(act.metadata.fileUrl));
-        }
+      if (act.type === 'UPLOAD' && act.metadata?.fileUrl) {
+        fileDeletePromises.push(deleteFileFromUrl(act.metadata.fileUrl));
+      }
     });
 
     // EXECUTE EVERYTHING IN PARALLEL
     await Promise.all([
-        ...fileDeletePromises,
-        Activity.deleteMany({ taskId: { $in: taskIds } }), 
-        Task.deleteMany({ projectId: project._id }),       
-        Event.deleteMany({ projectId: project._id }),     
-        project.deleteOne()                                
+      ...fileDeletePromises,
+      Activity.deleteMany({ taskId: { $in: taskIds } }),
+      Task.deleteMany({ projectId: project._id }),
+      Event.deleteMany({ projectId: project._id }),
+      project.deleteOne()
     ]);
 
     // 4. Socket Broadcast
@@ -200,8 +216,21 @@ const addProjectMember = async (req, res) => {
       // Notify the specific user they were added
       io.to(`user_${userToAdd.clerkId}`).emit("notification:new", note);
 
+      // Notify the added user so their project list updates
+      io.to(`user_${userToAdd.clerkId}`).emit("project:assigned", project);
+
       // Update the project room (so the member list updates live for everyone)
       io.to(`project_${project._id}`).emit("project:updated", project);
+
+      // 🆕 NEW: Broadcast to org room so project list updates for everyone
+      if (project.orgId) {
+        io.to(`org_${project.orgId}`).emit("project:member_added", {
+          projectId: project._id,
+          userId: userToAdd.clerkId,
+          userName: `${userToAdd.firstName} ${userToAdd.lastName}`
+        });
+        console.log(`✅ Emitted project:member_added to org_${project.orgId}`);
+      }
     }
 
     res.json({ message: "Member added", member: userToAdd });
@@ -252,8 +281,7 @@ const updateProjectSettings = async (req, res) => {
 // 👇 NEW: Remove Member (Admin Only)
 const removeProjectMember = async (req, res) => {
   try {
-    const { id } = req.params; // Project ID
-    const { userId } = req.body; // Member to remove
+    const { id, userId } = req.params; // Project ID & Member to remove
 
     const project = await Project.findById(id);
     if (!project) return res.status(404).json({ message: "Project not found" });
@@ -261,10 +289,21 @@ const removeProjectMember = async (req, res) => {
     project.members = project.members.filter((m) => m !== userId);
     await project.save();
 
+    //  CASCADE: Remove from all tasks in this project
+    const updatedTasks = await Task.updateMany(
+      { projectId: id },
+      { $pull: { assignees: userId } }
+    );
+
+    console.log(`✅ Removed ${userId} from project and ${updatedTasks.modifiedCount} tasks`);
+
     const io = req.app.get("io");
     if (io) {
       // Kick the user out of the project room live
       io.to(`project_${id}`).emit("project:member_removed", userId);
+
+      // Notify the user so they can remove it from their list
+      io.to(`user_${userId}`).emit("project:removed_from", id);
       io.to(`project_${id}`).emit("project:updated", project);
     }
 

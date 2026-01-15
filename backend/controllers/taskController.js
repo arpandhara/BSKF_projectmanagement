@@ -216,8 +216,6 @@ const getTaskById = async (req, res) => {
     const { id } = req.params;
     const userId = req.auth.userId;
     const isOrgAdmin = req.auth.orgRole === "org:admin";
-    const isGlobalAdmin = req.auth.sessionClaims?.publicMetadata?.role === "admin";
-    const isAdmin = isOrgAdmin || isGlobalAdmin;
 
     const task = await Task.findById(id).populate("projectId", "title ownerId").lean();
 
@@ -225,7 +223,7 @@ const getTaskById = async (req, res) => {
 
     const isAssignee = task.assignees.includes(userId);
 
-    if (!isAdmin && !isAssignee) {
+    if (!isOrgAdmin && !isAssignee) {
       return res
         .status(403)
         .json({ message: "Access Denied. You are not assigned to this task." });

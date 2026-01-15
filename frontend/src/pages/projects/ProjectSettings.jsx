@@ -27,8 +27,7 @@ const ProjectSettings = () => {
   });
 
   // Check Admin Status
-  const isAdmin =
-    user?.publicMetadata?.role === "admin" || orgRole === "org:admin";
+  const isAdmin = orgRole === "org:admin";
 
   useEffect(() => {
     const fetchProject = async () => {

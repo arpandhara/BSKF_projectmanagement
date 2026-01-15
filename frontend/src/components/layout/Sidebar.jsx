@@ -33,9 +33,8 @@ function Sidebar() {
   const sidebarRef = useRef(null);
 
   // Permission Logic
-  const isGlobalAdmin = user?.publicMetadata?.role === "admin";
   const isOrgAdmin = orgRole === "org:admin";
-  const canCreateOrg = isGlobalAdmin || isOrgAdmin;
+  const canCreateOrg = isOrgAdmin;
 
   const { data: projects = [] } = useQuery({
     queryKey: ["projects", orgId], // Unique key for this data

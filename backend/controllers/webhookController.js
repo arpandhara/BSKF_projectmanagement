@@ -107,10 +107,10 @@ export const clerkWebhook = async (req, res) => {
   }
 
   // ------------------------------------------------------------------
-  // 2. MEMBERSHIP SYNC (Fixes the Bug: Role Persistence)
+  // 2. MEMBERSHIP SYNC (Role Updates)
   // ------------------------------------------------------------------
 
-  // CASE A: User Joins or Role Changes (Sync exact role)
+  // CASE A: User Joins or Role Changes
   else if (eventType === "organizationMembership.created" || eventType === "organizationMembership.updated") {
     try {
       const userId = data.public_user_data?.user_id;
@@ -121,19 +121,11 @@ export const clerkWebhook = async (req, res) => {
 
       console.log(`📥 Webhook: ${eventType} - User: ${userId}, OrgId: ${orgId}, Role: ${orgRole}`);
 
-      // Determine Global Role based on Org Role
-      const newGlobalRole = (orgRole === "org:admin") ? "admin" : "member";
+      // NO LONGER syncing role to publicMetadata or MongoDB
+      // Clerk's orgRole handles this automatically per organization
 
       if (userId) {
-        // 1. Update MongoDB
-        await User.findOneAndUpdate({ clerkId: userId }, { role: newGlobalRole });
-
-        // 2. Update Clerk Metadata (So frontend UI updates immediately)
-        await clerkClient.users.updateUserMetadata(userId, {
-          publicMetadata: { role: newGlobalRole }
-        });
-
-        // 3. Notify Team List to Update
+        // Notify Team List to Update
         const io = req.app.get("io");
         if (io) {
           console.log(`🔔 Webhook: Attempting to emit team:update to org_${orgId}`);
@@ -147,10 +139,10 @@ export const clerkWebhook = async (req, res) => {
           console.log("❌ Webhook: Socket IO instance not found on req.app");
         }
 
-        console.log(`🔄 Role Synced for ${userId}: Now ${newGlobalRole}`);
+        console.log(`🔄 Role change processed for ${userId}: ${orgRole} in ${orgId}`);
       }
     } catch (error) {
-      console.error("❌ Error syncing membership role:", error);
+      console.error("❌ Error processing membership change:", error);
       return res.status(500).json({ message: "Sync error" });
     }
   }
@@ -164,13 +156,30 @@ export const clerkWebhook = async (req, res) => {
       if (userId) {
         // 1. Remove from Projects (Existing Logic)
         if (organizationId) {
-          await Project.updateMany(
+          const projectUpdateResult = await Project.updateMany(
             { orgId: organizationId },
             { $pull: { members: userId } }
           );
+
+          console.log(`📋 Removed user ${userId} from ${projectUpdateResult.modifiedCount} projects`);
+
+          // 2. 🆕 NEW: Remove from Tasks (Cascading Cleanup)
+          // Find all projects in this organization
+          const orgProjects = await Project.find({ orgId: organizationId }).select('_id');
+          const projectIds = orgProjects.map(p => p._id);
+
+          if (projectIds.length > 0) {
+            // Remove user from all task assignees in these projects
+            const taskUpdateResult = await Task.updateMany(
+              { projectId: { $in: projectIds } },
+              { $pull: { assignees: userId } }
+            );
+
+            console.log(`✅ Removed user ${userId} from ${taskUpdateResult.modifiedCount} tasks`);
+          }
         }
 
-        // 2. 👇 NEW: Downgrade User to 'member' globally
+        // 3. Downgrade User to 'member' globally
         // This ensures if they are kicked, they lose Admin status immediately.
         await User.findOneAndUpdate({ clerkId: userId }, { role: "member" });
 
@@ -178,18 +187,18 @@ export const clerkWebhook = async (req, res) => {
           publicMetadata: { role: "member" }
         });
 
-        // 3. Notify Frontend to Refresh User Session
+        // 4. Notify Frontend to Refresh User Session
         const io = req.app.get("io");
         if (io) {
           io.to(`user_${userId}`).emit("session:refresh");
 
-          // 4. Notify Team List to Update
+          // 5. Notify Team List to Update
           if (organizationId) {
             io.to(`org_${organizationId}`).emit("team:update");
           }
         }
 
-        console.log(`🔻 User ${userId} removed from Org. Downgraded to Member.`);
+        console.log(`🔻 User ${userId} removed from Org. Downgraded to Member. Cleaned up projects and tasks.`);
       }
     } catch (error) {
       console.error("❌ Error processing membership deletion:", error);

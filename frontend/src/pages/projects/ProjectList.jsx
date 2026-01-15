@@ -22,7 +22,7 @@ const ProjectList = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { orgId } = useAuth();
+  const { orgId, orgRole } = useAuth();
 
   // Track which dropdown is open (by project ID)
   const [openMenuId, setOpenMenuId] = useState(null);
@@ -43,7 +43,7 @@ const ProjectList = () => {
     }
   }, { scope: containerRef, dependencies: [projects] });
 
-  const isAdmin = user?.publicMetadata?.role === "admin";
+  const isAdmin = orgRole === "org:admin";
 
   const fetchProjects = async () => {
     try {
@@ -66,18 +66,48 @@ const ProjectList = () => {
     const socket = getSocket();
     if (!socket) return;
 
-    const handleProjectDeleted = (deletedProjectId) => {
+    if (orgId) {
+      socket.emit("join_org", orgId);
+    }
+
+    const handleProjectCreated = (newProject) => {
+      // Logic: 
+      // 1. If Admin -> Always Show
+      // 2. If Member -> Show only if I am the owner OR I am a member
+      const isOwner = newProject.ownerId === user?.id;
+      const isMember = newProject.members?.includes(user?.id);
+
+      if (isAdmin || isOwner || isMember) {
+         setProjects((prev) => [newProject, ...prev]); 
+      }
+    };
+
+    const handleProjectAssigned = (project) => {
+       setProjects((prev) => {
+         // Prevent duplicates
+         if (prev.some((p) => (p._id || p.id) === (project._id || project.id))) return prev;
+         return [project, ...prev];
+       });
+    };
+
+    const handleProjectRemovedOrDeleted = (projectId) => {
       setProjects((prev) =>
-        prev.filter((p) => (p._id || p.id) !== deletedProjectId)
+        prev.filter((p) => (p._id || p.id) !== projectId)
       );
     };
 
-    socket.on("project:deleted", handleProjectDeleted);
+    socket.on("project:created", handleProjectCreated);
+    socket.on("project:assigned", handleProjectAssigned);
+    socket.on("project:removed_from", handleProjectRemovedOrDeleted);
+    socket.on("project:deleted", handleProjectRemovedOrDeleted);
 
     return () => {
-      socket.off("project:deleted", handleProjectDeleted);
+      socket.off("project:created", handleProjectCreated);
+      socket.off("project:assigned", handleProjectAssigned);
+      socket.off("project:removed_from", handleProjectRemovedOrDeleted);
+      socket.off("project:deleted", handleProjectRemovedOrDeleted);
     };
-  }, []);
+  }, [orgId, isAdmin, user?.id]);
 
   // Handle Delete
   const handleDelete = async (e, projectId) => {

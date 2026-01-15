@@ -12,7 +12,7 @@ import {
 
 const router = express.Router();
 
-const ALLOWED_ROLES = ["org:admin", "admin"];
+const ALLOWED_ROLES = ["admin"]; // Clerk stores org role as "admin" or "member"
 
 router.post(
   "/demote/request",

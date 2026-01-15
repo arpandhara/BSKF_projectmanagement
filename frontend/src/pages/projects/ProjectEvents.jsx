@@ -16,7 +16,7 @@ const ProjectEvents = () => {
   const [formData, setFormData] = useState({ title: "", startDate: "", meetLink: "" });
 
   // Admin Check
-  const isAdmin = user?.publicMetadata?.role === "admin" || orgRole === "org:admin";
+  const isAdmin = orgRole === "org:admin";
 
   const fetchEvents = async () => {
     try {

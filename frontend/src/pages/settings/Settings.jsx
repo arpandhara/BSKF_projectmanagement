@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { UserProfile, useUser, useOrganization } from "@clerk/clerk-react";
+import { UserProfile, useUser, useOrganization, useAuth } from "@clerk/clerk-react";
 import { Building2, User, Upload, Trash2, AlertTriangle } from "lucide-react";
 import api from "../../services/api";
 import PageTransition from "../../components/common/PageTransition";
@@ -7,6 +7,7 @@ import PageTransition from "../../components/common/PageTransition";
 const Settings = () => {
   const { user } = useUser();
   const { organization, isLoaded } = useOrganization();
+  const { orgRole } = useAuth();
   const [activeTab, setActiveTab] = useState("profile");
 
   // Form State
@@ -24,9 +25,8 @@ const Settings = () => {
   }, [organization]);
 
   // Permission Check
-  const isGlobalAdmin = user?.publicMetadata?.role === "admin";
-  const isOrgAdmin = organization?.membership?.role === "org:admin";
-  const canManageWorkspace = organization && (isGlobalAdmin || isOrgAdmin);
+  const isOrgAdmin = orgRole === "org:admin"; // Updated to use orgRole
+  const canManageWorkspace = organization && isOrgAdmin;
 
   const handleLogoChange = (e) => {
     const file = e.target.files[0];

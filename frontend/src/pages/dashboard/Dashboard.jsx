@@ -214,11 +214,21 @@ const Dashboard = () => {
               </button>
             </div>
 
+            {/* Profile Photo - Clickable */}
             <button
               onClick={() => navigate("/settings")}
-              className="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors border border-neutral-700"
+              className="relative group"
+              title="My Profile"
             >
-              My Profile
+              <img
+                src={user?.imageUrl}
+                alt={user?.firstName || "Profile"}
+                className="w-10 h-10 rounded-full border-2 border-neutral-700 hover:border-blue-500 transition-colors cursor-pointer object-cover"
+              />
+              {/* Tooltip on hover */}
+              <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-neutral-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                My Profile
+              </span>
             </button>
           </div>
         </div>

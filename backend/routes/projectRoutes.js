@@ -36,7 +36,7 @@ router.get('/:id/members', requireAuth, getProjectMembers);
 router.put('/:id/members', requireAuth, addProjectMember);
 
 router.put('/:id', updateProjectSettings);
-router.delete("/:id/members", requireAuth, requireRole(["admin", "org:admin"]), removeProjectMember);
+router.delete("/:id/members/:userId", requireAuth, requireRole(["admin"]), removeProjectMember);
 router.post("/:id/events", requireAuth, createProjectEvent);
 router.get("/:id/events", requireAuth, getProjectEvents);
 
