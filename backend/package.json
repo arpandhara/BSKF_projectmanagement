@@ -17,6 +17,7 @@
     "@clerk/clerk-sdk-node": "^4.13.23",
     "@supabase/supabase-js": "^2.86.2",
     "bcrypt": "^6.0.0",
+    "compression": "^1.8.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",

@@ -39,5 +39,6 @@ const userSchema = new mongoose.Schema(
 );
 
 userSchema.index({ clerkId: 1 });
+userSchema.index({ email: 1 }); // For email lookups
 
 export default mongoose.model("User", userSchema);

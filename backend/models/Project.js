@@ -3,12 +3,12 @@ import mongoose from "mongoose";
 const projectSchema = mongoose.Schema(
   {
     title: { type: String, required: true },
-    description: { type: String , default: "No Description" },
+    description: { type: String, default: "No Description" },
     status: {
-    type: String,
-    enum: ["ACTIVE", "COMPLETED", "ON_HOLD", "ARCHIVED", "active", "completed"], 
-    default: "ACTIVE"
-  },
+      type: String,
+      enum: ["ACTIVE", "COMPLETED", "ON_HOLD", "ARCHIVED", "active", "completed"],
+      default: "ACTIVE"
+    },
     priority: {
       type: String,
       enum: ["HIGH", "MEDIUM", "LOW"],
@@ -30,5 +30,7 @@ const projectSchema = mongoose.Schema(
 projectSchema.index({ orgId: 1 });
 projectSchema.index({ ownerId: 1 });
 projectSchema.index({ members: 1 });
+projectSchema.index({ orgId: 1, status: 1 }); // Compound index for org projects by status
+projectSchema.index({ createdAt: -1 }); // For sorting
 
 export default mongoose.model("Project", projectSchema);

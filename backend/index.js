@@ -6,6 +6,7 @@ import { initializeSocket } from "./socket/socket.js"; // Import socket init
 await dotenv.config();
 import cors from "cors";
 import helmet from "helmet";
+import compression from "compression";
 import { rateLimit } from "express-rate-limit";
 
 // Import Routes
@@ -31,6 +32,9 @@ const io = initializeSocket(httpServer);
 app.set("io", io);
 
 app.set('trust proxy', 1);
+
+// Enable response compression (reduces response size by 70-90%)
+app.use(compression());
 
 app.use(helmet());
 app.use(cors({
@@ -84,6 +88,24 @@ app.use("/api/notifications", notificationRoutes);
 
 app.get("/", (req, res) => {
   res.send("API is running...");
+});
+
+// Health check endpoint
+app.get('/health', async (req, res) => {
+  try {
+    await mongoose.connection.db.admin().ping();
+    res.status(200).json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      uptime: Math.floor(process.uptime()),
+      database: 'connected'
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: 'unhealthy',
+      error: error.message
+    });
+  }
 });
 
 app.use(errorHandler);
