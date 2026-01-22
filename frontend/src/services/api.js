@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Create an axios instance
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api', // Your Backend URL
+  baseURL: (import.meta.env.VITE_API_URL || 'http://localhost:5000') + '/api', // Backend URL
 });
 
 export const setupInterceptors = (getToken) => {
@@ -10,7 +10,7 @@ export const setupInterceptors = (getToken) => {
     async (config) => {
       // 1. Get the token from Clerk
       const token = await getToken();
-      
+
       // 2. Attach it to the Authorization header
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
