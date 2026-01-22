@@ -17,6 +17,7 @@ const MemberDetails = () => {
   
   // Clerk hooks
   const { organization, isLoaded } = useOrganization();
+  // eslint-disable-next-line no-unused-vars
   const { user: currentUser } = useUser();
   const { orgRole } = useAuth(); // Added to get current user's org role
 
@@ -112,7 +113,7 @@ const MemberDetails = () => {
       alert("User removed.");
       navigate("/team");
     } catch {
-      alert("Failed to remove user");
+      alert("Failed to fetch member details");
     }
   };
 

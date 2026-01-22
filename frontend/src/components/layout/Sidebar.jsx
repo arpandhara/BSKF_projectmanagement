@@ -114,7 +114,7 @@ function Sidebar({ onClose }) {
           <SidebarItem 
             key={items.path}
             to={items.path}
-            icon={items.icon}
+            Icon={items.icon}
             label={items.label}
             badge={items.badge}
             onClick={onClose}
@@ -187,7 +187,8 @@ function Sidebar({ onClose }) {
   );
 }
 
-const SidebarItem = ({ to, icon: Icon, label, badge, onClick }) => (
+// eslint-disable-next-line no-unused-vars
+const SidebarItem = ({ to, Icon, label, badge, onClick }) => (
   <NavLink
     to={to}
     onClick={onClick}

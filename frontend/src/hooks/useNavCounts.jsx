@@ -25,13 +25,15 @@ export const useNavCounts = () => {
       console.error("User notification error:", error);
     }
 
-    if (orgId && canCreateOrg) {
+    if (orgId && isOrgAdmin) {
       try {
         const adminRes = await api.get("/admin-actions/pending", {
           params: { orgId },
         });
         total += adminRes.data.length;
-      } catch (error) {}
+      } catch (err) {
+        console.error("Admin actions fetch error:", err);
+      }
     }
     setPendingCount(total);
   };
@@ -47,8 +49,6 @@ export const useNavCounts = () => {
   };
 
   useEffect(() => {
-    let isMounted = true;
-
     const loadData = async () => {
       await Promise.all([fetchNotificationCounts(), fetchMyTaskCount()]);
     };
@@ -67,11 +67,11 @@ export const useNavCounts = () => {
     window.addEventListener("taskUpdate", handleTaskUpdate);
 
     return () => {
-      isMounted = false;
       window.removeEventListener("projectUpdate", handleProjectUpdate);
       window.removeEventListener("notificationUpdate", handleNotificationUpdate);
       window.removeEventListener("taskUpdate", handleTaskUpdate);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId, isOrgAdmin, user?.id]);
 
   // SOCKET: Listen for Live Notifications
@@ -105,6 +105,7 @@ export const useNavCounts = () => {
       socket.off("notification:new", handleNotification);
       socket.off("project:deleted", handleProjectDeleted);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId]);
 
   return { pendingCount, myTaskCount };

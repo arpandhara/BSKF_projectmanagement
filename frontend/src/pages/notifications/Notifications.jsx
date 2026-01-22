@@ -46,8 +46,8 @@ const Notifications = () => {
       try {
         await api.put("/notifications/mark-read");
         window.dispatchEvent(new Event("notificationUpdate"));
-      } catch (err) {
-        console.error("Failed to mark notifications as read", err);
+      } catch {
+        console.error("Failed to mark notifications as read");
       }
     };
     init();
@@ -81,7 +81,7 @@ const Notifications = () => {
       setUserNotifications((prev) => prev.filter((n) => n._id !== noteId));
       window.dispatchEvent(new Event("notificationUpdate"));
       window.dispatchEvent(new Event("taskUpdate"));
-    } catch (err) {
+    } catch {
       alert("Failed to respond to invite");
     }
   };

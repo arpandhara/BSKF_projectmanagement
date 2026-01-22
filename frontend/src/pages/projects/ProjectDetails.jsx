@@ -265,23 +265,23 @@ const ProjectDetails = () => {
 
         {/* Stats Row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <ProjectStat label="Total Tasks" value={tasks.length} icon={Zap} />
+          <ProjectStat label="Total Tasks" value={tasks.length} Icon={Zap} />
           <ProjectStat
             label="Completed"
             value={tasks.filter((t) => t.status === "Done").length}
-            icon={CheckCircle2}
+            Icon={CheckCircle2}
             color="text-green-500"
           />
           <ProjectStat
             label="In Progress"
             value={tasks.filter((t) => t.status === "In Progress").length}
-            icon={Clock}
+            Icon={Clock}
             color="text-orange-500"
           />
           <ProjectStat
             label="Team Members"
             value={members.length}
-            icon={User}
+            Icon={User}
             color="text-blue-500"
           />
         </div>
@@ -343,13 +343,13 @@ const ProjectDetails = () => {
           <TabButton
             active={activeTab === "tasks"}
             onClick={() => setActiveTab("tasks")}
-            icon={LayoutList}
+            Icon={LayoutList}
             label="Tasks"
           />
           <TabButton
             active={activeTab === "calendar"}
             onClick={() => setActiveTab("calendar")}
-            icon={CalendarIcon}
+            Icon={CalendarIcon}
             label="Calendar"
           />
 
@@ -532,7 +532,8 @@ const ProjectDetails = () => {
 };
 
 // Helper Components
-const ProjectStat = ({ label, value, icon: Icon, color = "text-white" }) => (
+// eslint-disable-next-line no-unused-vars
+const ProjectStat = ({ label, value, Icon, color = "text-white" }) => (
   <div className="bg-neutral-900 border border-neutral-800 p-4 rounded-xl flex items-center justify-between">
     <div>
       <p className="text-neutral-400 text-xs mb-1">{label}</p>
@@ -542,7 +543,8 @@ const ProjectStat = ({ label, value, icon: Icon, color = "text-white" }) => (
   </div>
 );
 
-const TabButton = ({ icon: Icon, label, active, onClick }) => (
+// eslint-disable-next-line no-unused-vars
+const TabButton = ({ Icon, label, active, onClick }) => (
   <button
     onClick={onClick}
     className={`flex items-center gap-2 pb-3 border-b-2 transition-colors ${

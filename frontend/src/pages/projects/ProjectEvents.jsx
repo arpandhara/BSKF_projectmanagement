@@ -4,7 +4,7 @@ import { Video, Calendar, Plus, ExternalLink, Clock } from "lucide-react";
 import Modal from "../../components/common/Modal";
 import api from "../../services/api";
 import { getSocket } from "../../services/socket";
-import { useAuth, useUser } from "@clerk/clerk-react"; // Import Auth
+import { useAuth } from "@clerk/clerk-react"; // Import Auth
 
 const ProjectEvents = () => {
   const { id } = useParams();
@@ -22,8 +22,8 @@ const ProjectEvents = () => {
     try {
       const res = await api.get(`/projects/${id}/events`);
       setEvents(res.data);
-    } catch (err) {
-      console.error("Failed to load events");
+    } catch {
+      console.error("Failed to fetch events");
     } finally {
       setLoading(false);
     }
@@ -47,8 +47,8 @@ const ProjectEvents = () => {
       await api.post(`/projects/${id}/events`, { ...formData, startDate: new Date(formData.startDate) });
       setIsModalOpen(false);
       setFormData({ title: "", startDate: "", meetLink: "" });
-    } catch (err) {
-      alert("Failed to create event. Ensure you are an admin.");
+    } catch {
+      alert("Failed to create event");
     }
   };
 

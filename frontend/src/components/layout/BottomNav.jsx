@@ -113,10 +113,10 @@ const BottomNav = () => {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <MenuTile icon={Users} label="Team" onClick={() => { navigate("/team"); setIsMenuOpen(false); }} />
-                <MenuTile icon={Settings} label="Settings" onClick={() => { navigate("/settings"); setIsMenuOpen(false); }} />
-                <MenuTile icon={Building} label="Create Org" onClick={() => { navigate("/create-organization"); setIsMenuOpen(false); }} />
-                <MenuTile icon={LogOut} label="Logout" danger onClick={() => signOut()} />
+                <MenuTile Icon={Users} label="Team" onClick={() => { navigate("/team"); setIsMenuOpen(false); }} />
+                <MenuTile Icon={Settings} label="Settings" onClick={() => { navigate("/settings"); setIsMenuOpen(false); }} />
+                <MenuTile Icon={Building} label="Create Org" onClick={() => { navigate("/create-organization"); setIsMenuOpen(false); }} />
+                <MenuTile Icon={LogOut} label="Logout" danger onClick={() => signOut()} />
               </div>
             </div>
 
@@ -133,7 +133,8 @@ const BottomNav = () => {
   );
 };
 
-const MenuTile = ({ icon: Icon, label, onClick, danger }) => (
+// eslint-disable-next-line no-unused-vars
+const MenuTile = ({ Icon, label, onClick, danger }) => (
   <button
     onClick={onClick}
     className={`flex flex-col items-center justify-center p-4 rounded-xl border transition-colors ${

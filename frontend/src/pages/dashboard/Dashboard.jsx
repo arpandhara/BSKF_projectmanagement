@@ -240,7 +240,7 @@ const Dashboard = () => {
               label="Total Projects"
               value={projects.length}
               sub="projects in Cloud Ops"
-              icon={Folder}
+              Icon={Folder}
               color="bg-blue-500/10 text-blue-500"
             />
           </div>
@@ -249,7 +249,7 @@ const Dashboard = () => {
               label="Completed"
               value={completedProjects}
               sub="of total projects"
-              icon={CheckCircle}
+              Icon={CheckCircle}
               color="bg-green-500/10 text-green-500"
             />
           </div>
@@ -258,7 +258,7 @@ const Dashboard = () => {
               label="My Tasks"
               value={myTasks.length}
               sub="assigned to me"
-              icon={Clock}
+              Icon={Clock}
               color="bg-purple-500/10 text-purple-500"
             />
           </div>
@@ -267,7 +267,7 @@ const Dashboard = () => {
               label="Overdue"
               value={overdueTasks.length}
               sub="needs attention"
-              icon={AlertTriangle}
+              Icon={AlertTriangle}
               color="bg-orange-500/10 text-orange-500"
             />
           </div>
@@ -412,7 +412,8 @@ const Dashboard = () => {
 };
 
 // Reusable Components
-const StatCard = ({ label, value, sub, icon: Icon, color }) => (
+// eslint-disable-next-line no-unused-vars
+const StatCard = ({ label, value, sub, Icon, color }) => (
   <div className="bg-neutral-900 border border-neutral-800 p-5 rounded-xl">
     <div className="flex justify-between items-start">
       <div>

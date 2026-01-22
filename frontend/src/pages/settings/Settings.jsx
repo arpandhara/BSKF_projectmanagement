@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { UserProfile, useUser, useOrganization, useAuth } from "@clerk/clerk-react";
+import { UserProfile, useOrganization, useAuth } from "@clerk/clerk-react";
 import { Building2, User, Upload, Trash2, AlertTriangle } from "lucide-react";
 import api from "../../services/api";
 import PageTransition from "../../components/common/PageTransition";
