@@ -5,7 +5,7 @@ import User from "../models/User.js";
 import Project from "../models/Project.js";
 import Activity from "../models/Activity.js";
 import { deleteFileFromUrl } from "../utils/supabase.js";
-import { getTaskAssignmentEmail } from "../utils/emailTemplates.js";
+
 
 
 const escapeHtml = (unsafe) => {
@@ -99,54 +99,7 @@ const createTask = async (req, res) => {
               });
             }
 
-            // Send Emails (Resend Integration)
-            const usersToEmail = await User.find({
-              clerkId: { $in: assigneesToNotify },
-            });
 
-            const safeTitle = escapeHtml(createdTask.title);
-            const safePriority = escapeHtml(createdTask.priority);
-
-            try {
-              const resendApiKey = process.env.RESEND_API_KEY;
-              if (resendApiKey) {
-                const { Resend } = await import('resend');
-                const resend = new Resend(resendApiKey);
-
-                await Promise.all(
-                  usersToEmail.map(async (user) => {
-                    if (!user.email) {
-                      console.log(`⚠️ User ${user.firstName} has no email. Skipping.`);
-                      return;
-                    }
-
-                    console.log(`ATTEMPTING sending email to: ${user.email} with Resend Key: ${resendApiKey.slice(0, 5)}...`);
-
-                    try {
-                      const safeName = escapeHtml(`${user.firstName} ${user.lastName}`);
-
-                      const data = await resend.emails.send({
-                        from: process.env.RESEND_FROM_EMAIL || 'Project Manager <onboarding@resend.dev>',
-                        to: user.email,
-                        subject: `New Task Assigned: ${safeTitle}`,
-                        html: getTaskAssignmentEmail(safeName, safeTitle, safePriority)
-                      });
-                      console.log(`✅ Email sent successfully to ${user.email}. ID: ${data.data?.id}`);
-                      if (data.error) {
-                        console.error(`❌ Resend API returned error for ${user.email}:`, data.error);
-                      }
-                    } catch (innerError) {
-                      console.error(`❌ Failed to send to ${user.email}:`, innerError);
-                    }
-                  })
-                );
-                console.log(`📧 Emails sent via Resend to ${usersToEmail.length} users.`);
-              } else {
-                console.warn("⚠️ RESEND_API_KEY is missing. Skipping email notifications.");
-              }
-            } catch (emailError) {
-              console.error("⚠️ Resend Email Error:", emailError);
-            }
           }
         }
       } catch (backgroundError) {
