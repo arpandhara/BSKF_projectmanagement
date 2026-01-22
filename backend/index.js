@@ -116,3 +116,32 @@ const PORT = process.env.PORT || 5000;
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
+// Graceful shutdown handlers
+const shutdown = async (signal) => {
+  console.log(`\n${signal} received, closing gracefully...`);
+
+  // Close HTTP server
+  httpServer.close(async () => {
+    console.log('HTTP server closed');
+
+    // Close database connection
+    try {
+      await mongoose.connection.close();
+      console.log('Database connection closed');
+      process.exit(0);
+    } catch (error) {
+      console.error('Error closing database:', error);
+      process.exit(1);
+    }
+  });
+
+  // Force close after 10 seconds
+  setTimeout(() => {
+    console.error('Forced shutdown after timeout');
+    process.exit(1);
+  }, 10000);
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
