@@ -255,6 +255,7 @@ const TaskDetails = () => {
     }
   };
 
+  const handleApprovalAction = async () => {
     if (!approvalComment && actionType === "REJECT") {
       toast.error("Please add a reason for rejection.");
       return;
