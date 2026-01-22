@@ -34,11 +34,24 @@ app.set('trust proxy', 1);
 
 app.use(helmet());
 app.use(cors({
-  origin: [
-    "http://localhost:5173", // Local dev
-    "https://bskf-projectmanagement-lwh7jbk51-susthayis-projects.vercel.app", // Vercel preview
-    process.env.CLIENT_URL // Production URL from env
-  ].filter(Boolean), // Remove undefined values
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or Postman)
+    if (!origin) return callback(null, true);
+
+    // Allow localhost for development
+    if (origin.includes('localhost')) return callback(null, true);
+
+    // Allow all Vercel preview and production URLs
+    if (origin.endsWith('.vercel.app')) return callback(null, true);
+
+    // Allow production domain if set in env
+    if (process.env.CLIENT_URL && origin === process.env.CLIENT_URL) {
+      return callback(null, true);
+    }
+
+    // Reject all other origins
+    callback(new Error('Not allowed by CORS'));
+  },
   credentials: true
 }));
 app.use(
