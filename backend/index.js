@@ -10,6 +10,7 @@ import compression from "compression";
 import { rateLimit } from "express-rate-limit";
 
 // Import Routes
+import mongoose from "mongoose";
 import connectDB from "./config/db.js";
 import errorHandler from "./middleware/errorMiddleware.js";
 import projectRoutes from "./routes/projectRoutes.js";
