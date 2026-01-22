@@ -13,7 +13,7 @@ export const useNavCounts = () => {
   const [myTaskCount, setMyTaskCount] = useState(0);
 
   const isOrgAdmin = orgRole === "org:admin";
-  const canCreateOrg = isOrgAdmin;
+
 
   const fetchNotificationCounts = async () => {
     let total = 0;
@@ -47,23 +47,32 @@ export const useNavCounts = () => {
   };
 
   useEffect(() => {
-    fetchNotificationCounts();
-    fetchMyTaskCount();
+    let isMounted = true;
+
+    const loadData = async () => {
+      await Promise.all([fetchNotificationCounts(), fetchMyTaskCount()]);
+    };
+    loadData();
 
     const invalidateProjects = () =>
       queryClient.invalidateQueries(["projects", orgId]);
 
     // Listeners for updates (Legacy window events)
-    window.addEventListener("projectUpdate", invalidateProjects);
-    window.addEventListener("notificationUpdate", fetchNotificationCounts);
-    window.addEventListener("taskUpdate", fetchMyTaskCount);
+    const handleProjectUpdate = () => invalidateProjects();
+    const handleNotificationUpdate = () => fetchNotificationCounts();
+    const handleTaskUpdate = () => fetchMyTaskCount();
+
+    window.addEventListener("projectUpdate", handleProjectUpdate);
+    window.addEventListener("notificationUpdate", handleNotificationUpdate);
+    window.addEventListener("taskUpdate", handleTaskUpdate);
 
     return () => {
-      window.removeEventListener("projectUpdate", invalidateProjects);
-      window.removeEventListener("notificationUpdate", fetchNotificationCounts);
-      window.removeEventListener("taskUpdate", fetchMyTaskCount);
+      isMounted = false;
+      window.removeEventListener("projectUpdate", handleProjectUpdate);
+      window.removeEventListener("notificationUpdate", handleNotificationUpdate);
+      window.removeEventListener("taskUpdate", handleTaskUpdate);
     };
-  }, [orgId, canCreateOrg, user?.id]);
+  }, [orgId, isOrgAdmin, user?.id]);
 
   // SOCKET: Listen for Live Notifications
   useEffect(() => {

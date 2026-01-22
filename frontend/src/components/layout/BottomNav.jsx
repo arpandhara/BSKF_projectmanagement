@@ -24,25 +24,7 @@ const BottomNav = () => {
 
   if (!orgId) return null;
 
-  const navItems = [
-    { icon: Home, label: "Home", path: "/" },
-    { icon: FolderKanban, label: "Projects", path: "/projects" },
-    { icon: CheckSquare, label: "Tasks", path: "/tasks" }, // Assuming a generic tasks route or we can link to my-tasks logic if needed, but usually tasks are project specific. Let's use a dummy or redirect. BETTER: Link to a "My Tasks" page if it exists, or just omit. 
-    // Wait, the sidebar has "My Tasks" as a special section, not a direct route usually unless implemented. 
-    // Let's check Sidebar... it has a "My Tasks" section that just shows count, but clicking it goes nowhere in the original code? 
-    // Ah, wait. In Sidebar.jsx: "My Tasks" section is just a display? 
-    // "div className=... nav-item" -> It doesn't have an onClick to navigate!
-    // Let's create a dedicated My Tasks page later if needed. For now, let's point "Tasks" to the Projects page or maybe just omit it.
-    // Actually, Instagram has 5 items. 
-    // 1. Home 2. Search (Projects?) 3. Post (Create?) 4. Reels (Activity?) 5. Profile (Menu)
-    // Let's stick to the plan: Home, Projects, My Tasks (maybe just a flexible space or Notifications), Notifications, Menu.
-  ];
 
-  // Let's refine the items based on utility
-  // 1. Dashboard (Home)
-  // 2. Projects
-  // 3. Notifications
-  // 4. Menu (More)
 
   return (
     <>

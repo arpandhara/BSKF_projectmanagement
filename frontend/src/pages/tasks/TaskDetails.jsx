@@ -160,7 +160,7 @@ const TaskDetails = () => {
   const handleUpdate = async (field, value) => {
     try {
       await api.put(`/tasks/${taskId}`, { [field]: value });
-    } catch (err) {
+    } catch {
       alert("Failed to update task");
     }
   };
@@ -170,7 +170,7 @@ const TaskDetails = () => {
     try {
       await api.delete(`/tasks/${taskId}`);
       navigate(-1);
-    } catch (err) {
+    } catch {
       alert("Failed to delete task");
     }
   };
@@ -186,7 +186,7 @@ const TaskDetails = () => {
         content: commentText,
       });
       setCommentText("");
-    } catch (error) {
+    } catch {
       alert("Failed to post comment");
     }
   };

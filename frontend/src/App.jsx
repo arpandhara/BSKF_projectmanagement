@@ -28,6 +28,16 @@ const TaskDetails = lazy(() => import("./pages/tasks/TaskDetails"));
 const ProjectSettings = lazy(() => import("./pages/projects/ProjectSettings"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
+// Reusable Loading Spinner
+const LoadingSpinner = () => (
+  <div className="min-h-screen bg-neutral-950 flex items-center justify-center text-white">
+    <div className="flex flex-col items-center gap-4">
+      <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      <p className="text-sm text-neutral-400">Loading...</p>
+    </div>
+  </div>
+);
+
 const App = () => {
   const { getToken } = useAuth();
   const { user } = useUser();
@@ -54,15 +64,6 @@ const App = () => {
     }
   }, [user?.id]);
 
-  // Reusable Loading Spinner
-  const LoadingSpinner = () => (
-    <div className="min-h-screen bg-neutral-950 flex items-center justify-center text-white">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-sm text-neutral-400">Loading...</p>
-      </div>
-    </div>
-  );
 
   return (
     <>

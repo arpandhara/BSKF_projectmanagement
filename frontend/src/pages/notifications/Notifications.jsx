@@ -81,7 +81,7 @@ const Notifications = () => {
       setUserNotifications((prev) => prev.filter((n) => n._id !== noteId));
       window.dispatchEvent(new Event("notificationUpdate"));
       window.dispatchEvent(new Event("taskUpdate"));
-    } catch (error) {
+    } catch (err) {
       alert("Failed to respond to invite");
     }
   };
@@ -101,7 +101,7 @@ const Notifications = () => {
       alert("Action approved successfully.");
 
       if (req.type === "DELETE_ORG") {
-        window.location.href = "/";
+        window.location.assign("/");
       } else {
         fetchData();
         window.dispatchEvent(new Event("notificationUpdate"));

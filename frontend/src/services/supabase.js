@@ -15,12 +15,11 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 export const uploadFile = async (file, bucket = 'task-assets') => {
   try {
     // A. Sanitize file name to avoid collisions
-    const fileExt = file.name.split('.').pop();
     const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '-')}`;
     const filePath = `${fileName}`;
 
     // B. Upload to Supabase
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from(bucket)
       .upload(filePath, file, {
         cacheControl: '3600',

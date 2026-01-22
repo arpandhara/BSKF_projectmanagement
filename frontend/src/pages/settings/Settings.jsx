@@ -5,7 +5,7 @@ import api from "../../services/api";
 import PageTransition from "../../components/common/PageTransition";
 
 const Settings = () => {
-  const { user } = useUser();
+
   const { organization, isLoaded } = useOrganization();
   const { orgRole } = useAuth();
   const [activeTab, setActiveTab] = useState("profile");

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import BottomNav from "./BottomNav";
@@ -6,7 +6,6 @@ import ToastContainer from "../common/ToastContainer";
 import { Menu } from "lucide-react";
 
 function AppLayout() {
-  const [isSidebarOpen, setSidebarOpen] = useState(false);
 
   return (
     <div className="flex min-h-screen bg-neutral-950 text-white relative">

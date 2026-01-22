@@ -16,7 +16,7 @@ const ProjectSettings = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { orgRole } = useAuth();
-  const { user } = useUser();
+
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);

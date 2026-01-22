@@ -111,7 +111,7 @@ const MemberDetails = () => {
       await currentMember.destroy();
       alert("User removed.");
       navigate("/team");
-    } catch (e) {
+    } catch {
       alert("Failed to remove user");
     }
   };
@@ -138,7 +138,7 @@ const MemberDetails = () => {
         });
         alert("User promoted!");
         // No reload needed! Socket "team:update" will trigger fetchMemberDetails()
-    } catch (e) {
+    } catch {
         alert("Failed to promote");
     }
   };

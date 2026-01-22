@@ -206,21 +206,21 @@ const TeamList = () => {
           <TeamStat
             label="Total Members"
             value={members.length}
-            icon={Users}
+            Icon={Users}
             color="text-blue-500"
             bg="bg-blue-500/10"
           />
           <TeamStat
             label="Pending Invites"
             value={organization.pendingInvitationsCount || 0}
-            icon={Mail}
+            Icon={Mail}
             color="text-orange-500"
             bg="bg-orange-500/10"
           />
           <TeamStat
             label="Admins"
             value={members.filter((m) => m.role === "org:admin").length}
-            icon={Shield}
+            Icon={Shield}
             color="text-purple-500"
             bg="bg-purple-500/10"
           />
@@ -336,7 +336,8 @@ const TeamList = () => {
   );
 };
 
-const TeamStat = ({ label, value, icon: Icon, color, bg }) => (
+/* eslint-disable no-unused-vars */
+const TeamStat = ({ label, value, Icon, color, bg }) => (
   <div className="bg-neutral-900 border border-neutral-800 p-6 rounded-xl flex justify-between items-center">
     <div>
       <p className="text-neutral-400 text-sm">{label}</p>
@@ -347,5 +348,6 @@ const TeamStat = ({ label, value, icon: Icon, color, bg }) => (
     </div>
   </div>
 );
+/* eslint-enable no-unused-vars */
 
 export default TeamList;

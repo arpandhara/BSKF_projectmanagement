@@ -9,7 +9,7 @@ import { useAuth, useUser } from "@clerk/clerk-react"; // Import Auth
 const ProjectEvents = () => {
   const { id } = useParams();
   const { orgRole } = useAuth();
-  const { user } = useUser();
+  // const { user } = useUser(); // Unused
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -22,7 +22,7 @@ const ProjectEvents = () => {
     try {
       const res = await api.get(`/projects/${id}/events`);
       setEvents(res.data);
-    } catch (error) {
+    } catch (err) {
       console.error("Failed to load events");
     } finally {
       setLoading(false);
@@ -47,7 +47,7 @@ const ProjectEvents = () => {
       await api.post(`/projects/${id}/events`, { ...formData, startDate: new Date(formData.startDate) });
       setIsModalOpen(false);
       setFormData({ title: "", startDate: "", meetLink: "" });
-    } catch (error) {
+    } catch (err) {
       alert("Failed to create event. Ensure you are an admin.");
     }
   };

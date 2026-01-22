@@ -1,6 +1,6 @@
 import React, { useRef } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { useClerk, useAuth, OrganizationSwitcher, useUser } from "@clerk/clerk-react";
+import { useClerk, useAuth, OrganizationSwitcher } from "@clerk/clerk-react";
 import gsap from "gsap"; 
 import { useGSAP } from "@gsap/react"; 
 import {
