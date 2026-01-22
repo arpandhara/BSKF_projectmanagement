@@ -7,6 +7,7 @@ import { BrowserRouter } from "react-router-dom";
 import { ClerkProvider } from "@clerk/clerk-react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import ErrorBoundary from "./components/common/ErrorBoundary.jsx";
+import { Toaster } from "react-hot-toast";
 
 // Initialize Sentry (optional - add your DSN from sentry.io)
 // Get DSN from: https://sentry.io/settings/projects/
@@ -48,6 +49,7 @@ if (!PUBLISHABLE_KEY) {
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <ErrorBoundary>
+      <Toaster position="top-right" />
       <ClerkProvider publishableKey={PUBLISHABLE_KEY} afterSignOutUrl="/login">
         <QueryClientProvider client={queryClient}>
           <BrowserRouter>

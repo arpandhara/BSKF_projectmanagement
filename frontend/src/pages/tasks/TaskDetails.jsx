@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 import {
   ArrowLeft,
   FileText,
@@ -247,16 +248,17 @@ const TaskDetails = () => {
   const handleInvite = async (memberId) => {
     try {
       await api.post(`/tasks/${taskId}/invite`, { targetUserId: memberId });
-      alert("Invitation sent!");
+      toast.success("Invitation sent!");
       setIsInviteOpen(false);
     } catch (error) {
-      alert(error.response?.data?.message || "Failed to send invite");
+      toast.error(error.response?.data?.message || "Failed to send invite");
     }
   };
 
-  const handleApprovalAction = async () => {
-    if (!approvalComment && actionType === "REJECT")
-      return alert("Please add a reason for rejection.");
+    if (!approvalComment && actionType === "REJECT") {
+      toast.error("Please add a reason for rejection.");
+      return;
+    }
 
     const updatedTask = {
       ...task,
