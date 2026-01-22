@@ -172,7 +172,7 @@ const ProjectList = () => {
                 <div
                   key={pid}
                   onClick={() => navigate(`/projects/${pid}`)}
-                  className="project-card bg-neutral-900 border border-neutral-800 rounded-xl p-6 hover:border-neutral-700 transition-all cursor-pointer group relative"
+                  className="project-card bg-neutral-900 border border-neutral-800 rounded-xl p-4 sm:p-6 hover:border-neutral-700 transition-all cursor-pointer group relative"
                 >
                   {/* Card Header */}
                   <div className="flex justify-between items-start mb-4">

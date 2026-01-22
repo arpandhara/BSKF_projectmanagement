@@ -150,7 +150,7 @@ const NewTaskModal = ({ isOpen, onClose, projectId, projectMembers = [], onTaskC
         </div>
 
         {/* Row 1: Type & Priority */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1">
             <label className="text-sm font-medium text-neutral-300">Type</label>
             <select 
@@ -184,7 +184,7 @@ const NewTaskModal = ({ isOpen, onClose, projectId, projectMembers = [], onTaskC
         </div>
 
         {/* Row 2: Multiple Assignees & Status */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Custom Multi-Select for Assignees */}
           <div className="space-y-1 relative" ref={dropdownRef}>
             <label className="text-sm font-medium text-neutral-300">Assignees</label>

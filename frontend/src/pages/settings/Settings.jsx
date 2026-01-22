@@ -134,10 +134,10 @@ const Settings = () => {
         </div>
 
         {/* Tabs */}
-        <div className="border-b border-neutral-800 flex gap-6 text-sm">
+        <div className="border-b border-neutral-800 flex gap-6 text-sm overflow-x-auto no-scrollbar">
           <button
             onClick={() => setActiveTab("profile")}
-            className={`flex items-center gap-2 pb-3 border-b-2 transition-colors ${
+            className={`flex items-center gap-2 pb-3 border-b-2 transition-colors whitespace-nowrap ${
               activeTab === "profile"
                 ? "border-blue-600 text-white"
                 : "border-transparent text-neutral-400 hover:text-neutral-200"
@@ -150,7 +150,7 @@ const Settings = () => {
           {canManageWorkspace && (
             <button
               onClick={() => setActiveTab("workspace")}
-              className={`flex items-center gap-2 pb-3 border-b-2 transition-colors ${
+              className={`flex items-center gap-2 pb-3 border-b-2 transition-colors whitespace-nowrap ${
                 activeTab === "workspace"
                   ? "border-blue-600 text-white"
                   : "border-transparent text-neutral-400 hover:text-neutral-200"
@@ -195,44 +195,44 @@ const Settings = () => {
                 <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-6">
                   <h2 className="text-lg font-semibold">General Information</h2>
 
-                  {/* Logo Upload Section */}
-                  <div className="space-y-3">
-                    <label className="text-sm font-medium text-neutral-300">
-                      Workspace Logo
-                    </label>
-                    <div className="flex items-center gap-6">
-                      <div className="w-20 h-20 bg-neutral-950 border border-neutral-800 rounded-lg flex items-center justify-center overflow-hidden">
-                        {previewUrl ? (
-                          <img
-                            src={previewUrl}
-                            alt="Logo Preview"
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <span className="text-2xl font-bold text-neutral-600">
-                            {orgName?.charAt(0) || "W"}
-                          </span>
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex gap-3">
-                          <label className="cursor-pointer bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg text-sm font-medium border border-neutral-700 transition-colors flex items-center gap-2">
-                            <Upload size={16} />
-                            Upload Logo
-                            <input
-                              type="file"
-                              className="hidden"
-                              accept="image/*"
-                              onChange={handleLogoChange}
+                    {/* Logo Upload Section */}
+                    <div className="space-y-3">
+                      <label className="text-sm font-medium text-neutral-300">
+                        Workspace Logo
+                      </label>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-6">
+                        <div className="w-20 h-20 bg-neutral-950 border border-neutral-800 rounded-lg flex items-center justify-center overflow-hidden shrink-0">
+                          {previewUrl ? (
+                            <img
+                              src={previewUrl}
+                              alt="Logo Preview"
+                              className="w-full h-full object-cover"
                             />
-                          </label>
+                          ) : (
+                            <span className="text-2xl font-bold text-neutral-600">
+                              {orgName?.charAt(0) || "W"}
+                            </span>
+                          )}
                         </div>
-                        <p className="text-xs text-neutral-500">
-                          Recommended size: 256x256px. Max file size: 5MB.
-                        </p>
+                        <div className="space-y-2">
+                          <div className="flex gap-3">
+                            <label className="cursor-pointer bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg text-sm font-medium border border-neutral-700 transition-colors flex items-center gap-2 w-fit">
+                              <Upload size={16} />
+                              Upload Logo
+                              <input
+                                type="file"
+                                className="hidden"
+                                accept="image/*"
+                                onChange={handleLogoChange}
+                              />
+                            </label>
+                          </div>
+                          <p className="text-xs text-neutral-500">
+                            Recommended size: 256x256px. Max file size: 5MB.
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
                   {/* Workspace Name */}
                   <div className="space-y-2">

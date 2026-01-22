@@ -243,7 +243,7 @@ const TeamList = () => {
 
         {/* Team Table */}
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
-          <div className="grid grid-cols-12 gap-4 p-4 border-b border-neutral-800 text-xs font-bold text-neutral-500 uppercase tracking-wider">
+          <div className="hidden sm:grid grid-cols-12 gap-4 p-4 border-b border-neutral-800 text-xs font-bold text-neutral-500 uppercase tracking-wider">
             <div className="col-span-3">Name</div>
             <div className="col-span-4">Email</div>
             <div className="col-span-2">Status</div>
@@ -251,32 +251,43 @@ const TeamList = () => {
           </div>
 
           {/* Table Body */}
-          <div>
+          <div className="divide-y divide-neutral-800">
             {filteredMembers.map((mem) => (
               <div
                 key={mem.id}
                 onClick={() => navigate(`/team/${mem.publicUserData.userId}`)}
-                className="grid grid-cols-12 gap-4 p-4 border-b border-neutral-800/50 hover:bg-neutral-800/50 transition-colors items-center text-sm last:border-0 cursor-pointer"
+                className="flex flex-col sm:grid sm:grid-cols-12 gap-3 sm:gap-4 p-4 hover:bg-neutral-800/50 transition-colors cursor-pointer"
               >
-                <div className="col-span-3 flex items-center gap-3">
+                {/* Name & Avatar */}
+                <div className="sm:col-span-3 flex items-center gap-3">
                   <img
                     src={mem.publicUserData.imageUrl}
                     alt={mem.publicUserData.firstName}
-                    className="w-8 h-8 rounded-full bg-neutral-800"
+                    className="w-10 h-10 sm:w-8 sm:h-8 rounded-full bg-neutral-800 object-cover"
                   />
-                  <span className="font-medium text-white">
-                    {mem.publicUserData.firstName} {mem.publicUserData.lastName}
-                    {mem.publicUserData.userId === user?.id && (
-                      <span className="ml-2 text-xs text-neutral-500">
-                        (You)
-                      </span>
-                    )}
-                  </span>
+                  <div>
+                    <span className="font-medium text-white block">
+                      {mem.publicUserData.firstName} {mem.publicUserData.lastName}
+                      {mem.publicUserData.userId === user?.id && (
+                        <span className="ml-2 text-xs text-neutral-500 inline">
+                          (You)
+                        </span>
+                      )}
+                    </span>
+                    {/* Mobile Only: Email sits here */}
+                    <span className="text-xs text-neutral-500 sm:hidden block mt-0.5">
+                      {mem.publicUserData.identifier}
+                    </span>
+                  </div>
                 </div>
-                <div className="col-span-4 text-neutral-400">
+
+                {/* Email (Desktop) */}
+                <div className="hidden sm:block sm:col-span-4 text-neutral-400 text-sm self-center truncate">
                   {mem.publicUserData.identifier}
                 </div>
-                <div className="col-span-2">
+
+                {/* Status */}
+                <div className="sm:col-span-2 flex items-center mt-2 sm:mt-0">
                   <span
                     className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full font-medium ${
                       memberStatus[mem.publicUserData.userId] === "on_leave"
@@ -292,7 +303,10 @@ const TeamList = () => {
                     {memberStatus[mem.publicUserData.userId] === "on_leave" ? "On Leave" : "Active"}
                   </span>
                 </div>
-                <div className="col-span-3 text-right">
+
+                {/* Role */}
+                <div className="sm:col-span-3 sm:text-right mt-2 sm:mt-0 flex sm:block items-center justify-between">
+                  <span className="text-xs text-neutral-500 sm:hidden uppercase font-bold tracking-wider">Role</span>
                   <span
                     className={`text-xs px-2 py-1 rounded font-bold uppercase ${
                       mem.role === "org:admin"

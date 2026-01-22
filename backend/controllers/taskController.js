@@ -1,10 +1,11 @@
 import Task from "../models/Task.js";
 import Notification from "../models/Notification.js";
 import User from "../models/User.js";
-import nodemailer from "nodemailer";
+// import nodemailer from "nodemailer"; // Removed in favor of Resend
 import Project from "../models/Project.js";
 import Activity from "../models/Activity.js";
 import { deleteFileFromUrl } from "../utils/supabase.js";
+import { getTaskAssignmentEmail } from "../utils/emailTemplates.js";
 
 
 const escapeHtml = (unsafe) => {
@@ -21,9 +22,23 @@ const escapeHtml = (unsafe) => {
 const getTasks = async (req, res) => {
   try {
     const { projectId } = req.params;
-    const tasks = await Task.find({ projectId }).sort({ createdAt: -1 }).lean();
+    const userId = req.auth.userId;
+
+    // Check for admin role (consistent with projectController which uses "admin")
+    const orgRole = req.auth?.sessionClaims?.o?.rol;
+    const isAdmin = orgRole === "org:admin" || orgRole === "admin";
+
+    let query = { projectId };
+
+    if (!isAdmin) {
+      // Members only see tasks assigned to them
+      query.assignees = userId;
+    }
+
+    const tasks = await Task.find(query).sort({ createdAt: -1 }).lean();
     res.json(tasks);
   } catch (error) {
+    console.error("Get Tasks Error:", error);
     res.status(500).json({ message: "Server Error" });
   }
 };
@@ -84,48 +99,54 @@ const createTask = async (req, res) => {
               });
             }
 
-            // Send Emails (The Heavy Operation)
+            // Send Emails (Resend Integration)
             const usersToEmail = await User.find({
               clerkId: { $in: assigneesToNotify },
-            });
-
-            const transporter = nodemailer.createTransport({
-              service: "gmail",
-              auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS,
-              },
             });
 
             const safeTitle = escapeHtml(createdTask.title);
             const safePriority = escapeHtml(createdTask.priority);
 
+            try {
+              const resendApiKey = process.env.RESEND_API_KEY;
+              if (resendApiKey) {
+                const { Resend } = await import('resend');
+                const resend = new Resend(resendApiKey);
 
-            await Promise.all(
-              usersToEmail.map((user) => {
-                if (!user.email) return;
-                const safeName = escapeHtml(user.firstName || "Member");
+                await Promise.all(
+                  usersToEmail.map(async (user) => {
+                    if (!user.email) {
+                      console.log(`⚠️ User ${user.firstName} has no email. Skipping.`);
+                      return;
+                    }
 
-                const mailOptions = {
-                  from: `"Project Manager" <${process.env.EMAIL_USER}>`,
-                  to: user.email,
-                  subject: `New Task Assigned: ${safeTitle}`,
-                  html: `
-                    <div style="font-family: Arial, sans-serif; color: #333;">
-                      <h2>New Task Assignment</h2>
-                      <p>Hi <strong>${safeName}</strong>,</p>
-                      <p>You have been assigned to a new task:</p>
-                      <blockquote style="border-left: 4px solid #2563eb; padding-left: 10px; margin: 20px 0;">
-                        <p><strong>Title:</strong> ${safeTitle}</p>
-                        <p><strong>Priority:</strong> ${safePriority}</p>
-                      </blockquote>
-                      <p>Best regards,<br/>The Team</p>
-                    </div>
-                  `,
-                };
-                return transporter.sendMail(mailOptions);
-              })
-            );
+                    console.log(`ATTEMPTING sending email to: ${user.email} with Resend Key: ${resendApiKey.slice(0, 5)}...`);
+
+                    try {
+                      const safeName = escapeHtml(`${user.firstName} ${user.lastName}`);
+
+                      const data = await resend.emails.send({
+                        from: process.env.RESEND_FROM_EMAIL || 'Project Manager <onboarding@resend.dev>',
+                        to: user.email,
+                        subject: `New Task Assigned: ${safeTitle}`,
+                        html: getTaskAssignmentEmail(safeName, safeTitle, safePriority)
+                      });
+                      console.log(`✅ Email sent successfully to ${user.email}. ID: ${data.data?.id}`);
+                      if (data.error) {
+                        console.error(`❌ Resend API returned error for ${user.email}:`, data.error);
+                      }
+                    } catch (innerError) {
+                      console.error(`❌ Failed to send to ${user.email}:`, innerError);
+                    }
+                  })
+                );
+                console.log(`📧 Emails sent via Resend to ${usersToEmail.length} users.`);
+              } else {
+                console.warn("⚠️ RESEND_API_KEY is missing. Skipping email notifications.");
+              }
+            } catch (emailError) {
+              console.error("⚠️ Resend Email Error:", emailError);
+            }
           }
         }
       } catch (backgroundError) {
@@ -215,7 +236,10 @@ const getTaskById = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.auth.userId;
-    const isOrgAdmin = req.auth.orgRole === "org:admin";
+    const isOrgAdmin =
+      req.auth?.sessionClaims?.o?.rol === "org:admin" ||
+      req.auth?.sessionClaims?.o?.rol === "admin" ||
+      req.auth?.orgRole === "org:admin";
 
     const task = await Task.findById(id).populate("projectId", "title ownerId").lean();
 
@@ -275,7 +299,24 @@ const updateTask = async (req, res) => {
 
       if (removedAttachments.length > 0) {
         console.log(`🗑️ Removing ${removedAttachments.length} attachments from storage...`);
-        await Promise.all(removedAttachments.map(att => deleteFileFromUrl(att.url)));
+
+        await Promise.all(removedAttachments.map(async (att) => {
+          // A. Delete from Supabase
+          await deleteFileFromUrl(att.url);
+
+          // B. Update Activity Log (Find the upload record for this file)
+          // We search by metadata.fileUrl inside the Activity collection
+          await Activity.updateMany(
+            { "metadata.fileUrl": att.url, type: 'UPLOAD' },
+            {
+              $set: {
+                type: 'ATTACHMENT_REMOVED',
+                content: 'Attachment was removed',
+                "metadata.fileUrl": null // Clear URL so frontend doesn't try to load it
+              }
+            }
+          );
+        }));
       }
     }
 

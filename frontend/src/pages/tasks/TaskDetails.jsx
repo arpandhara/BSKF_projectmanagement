@@ -344,6 +344,12 @@ const TaskDetails = () => {
           </div>
         )}
 
+        {act.type === "ATTACHMENT_REMOVED" && (
+          <div className="mt-1 p-2 bg-neutral-800/50 border border-neutral-800 rounded-lg text-sm text-neutral-500 italic flex items-center gap-2">
+            <Trash2 size={14} /> Attachment removed
+          </div>
+        )}
+
         {(act.type === "STATUS_CHANGE" || act.type === "PRIORITY_CHANGE") && (
           <p className="text-xs text-neutral-500 italic mt-0.5">
             {act.content}
@@ -438,8 +444,174 @@ const TaskDetails = () => {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
-          {/* LEFT COLUMN: Details & Attachments */}
-          <div className="lg:col-span-2 space-y-6 overflow-y-auto pr-2 custom-scrollbar">
+          
+          {/* RIGHT COLUMN: Metadata (Appears FIRST on Mobile) */}
+          <div className="space-y-6 lg:col-start-3 lg:col-span-1">
+            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-6 sticky top-0">
+              {/* Status */}
+              <div className="space-y-2">
+                <label className="text-xs text-neutral-500 uppercase font-bold tracking-wider">
+                  Status
+                </label>
+                <select
+                  value={task.status}
+                  onChange={(e) => handleUpdate("status", e.target.value)}
+                  className="w-full p-2.5 rounded-lg border font-medium outline-none appearance-none cursor-pointer bg-neutral-800 text-neutral-300 border-neutral-700 hover:bg-neutral-700"
+                >
+                  <option value="To Do">To Do</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Done">Done</option>
+                </select>
+              </div>
+
+              {/* Gallery */}
+              <div className="space-y-2">
+                <label className="text-xs text-neutral-500 uppercase font-bold tracking-wider">
+                  Gallery
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {task.attachments
+                    ?.filter((a) => a.type === "IMAGE")
+                    .map((img, idx) => (
+                      <a
+                        key={idx}
+                        href={img.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="aspect-square bg-neutral-950 rounded-lg border border-neutral-800 overflow-hidden hover:opacity-80 transition-opacity"
+                      >
+                        <img
+                          src={img.url}
+                          className="w-full h-full object-cover"
+                          alt="attachment"
+                        />
+                      </a>
+                    ))}
+                  {(!task.attachments ||
+                    task.attachments.filter((a) => a.type === "IMAGE")
+                      .length === 0) && (
+                    <div className="col-span-3 text-xs text-neutral-600 py-2 italic text-center border border-neutral-800 border-dashed rounded-lg">
+                      No images uploaded
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Assignees & Request Help */}
+              <div className="space-y-2">
+                <label className="text-xs text-neutral-500 uppercase font-bold flex justify-between">
+                  <span>Assignees</span>
+                  <span className="text-[10px] bg-neutral-800 px-1.5 rounded">
+                    {task.assignees?.length || 0}
+                  </span>
+                </label>
+                <div className="relative" ref={assigneeRef}>
+                  <button
+                    type="button"
+                    disabled={!isAdmin}
+                    onClick={() => setIsAssigneeOpen(!isAssigneeOpen)}
+                    className={`w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2.5 text-left flex justify-between items-center ${
+                      isAdmin ? "hover:border-neutral-700" : ""
+                    }`}
+                  >
+                    <div className="flex -space-x-2 overflow-hidden items-center h-6">
+                      {task.assignees && task.assignees.length > 0 ? (
+                        task.assignees.map((id) => {
+                          const mem = projectMembers.find(
+                            (m) => m.clerkId === id
+                          );
+                          if (!mem) return null;
+                          return (
+                            <img
+                              key={id}
+                              src={mem.photo}
+                              className="w-6 h-6 rounded-full ring-2 ring-neutral-900 bg-neutral-800 object-cover"
+                            />
+                          );
+                        })
+                      ) : (
+                        <span className="text-sm text-neutral-500 italic">
+                          Unassigned
+                        </span>
+                      )}
+                    </div>
+                    {isAdmin && (
+                      <ChevronDown size={14} className="text-neutral-500" />
+                    )}
+                  </button>
+                  {isAssigneeOpen && isAdmin && (
+                    <div className="absolute top-full left-0 mt-2 w-full bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl z-20 max-h-60 overflow-y-auto">
+                      {projectMembers.map((member) => (
+                        <div
+                          key={member.clerkId}
+                          onClick={() => handleToggleAssignee(member.clerkId)}
+                          className="flex items-center gap-3 px-3 py-2.5 hover:bg-neutral-800 cursor-pointer"
+                        >
+                          <div
+                            className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                              task.assignees?.includes(member.clerkId)
+                                ? "bg-blue-600 border-blue-600"
+                                : "border-neutral-600"
+                            }`}
+                          >
+                            {task.assignees?.includes(member.clerkId) && (
+                              <Check size={12} className="text-white" />
+                            )}
+                          </div>
+                          <span className="text-sm text-neutral-300 truncate">
+                            {member.firstName} {member.lastName}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {(isAssignee || isAdmin) && (
+                <div className="pt-2 relative" ref={inviteRef}>
+                  <button
+                    onClick={() => setIsInviteOpen(!isInviteOpen)}
+                    className="w-full flex items-center justify-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white py-2.5 rounded-lg text-sm font-medium border border-neutral-700"
+                  >
+                    <UserPlus size={16} /> Request Help
+                  </button>
+                  {isInviteOpen && (
+                    <div className="absolute top-full left-0 mt-2 w-full bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl z-20 p-1">
+                      {projectMembers
+                        .filter((m) => !task.assignees?.includes(m.clerkId))
+                        .filter((m) => memberStatuses[m.clerkId] !== "on_leave") // Hide on-leave members
+                        .map((m) => (
+                          <div
+                            key={m.clerkId}
+                            onClick={() => handleInvite(m.clerkId)}
+                            className="flex items-center gap-3 px-3 py-2 hover:bg-neutral-800 cursor-pointer rounded-md"
+                          >
+                            <img
+                              src={m.photo}
+                              className="w-6 h-6 rounded-full"
+                            />
+                            <span className="text-sm text-neutral-300">
+                              {m.firstName}
+                            </span>
+                          </div>
+                        ))}
+                      {projectMembers
+                        .filter((m) => !task.assignees?.includes(m.clerkId))
+                        .filter((m) => memberStatuses[m.clerkId] !== "on_leave").length === 0 && (
+                        <div className="px-3 py-2 text-sm text-neutral-500 text-center">
+                          No available members
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* LEFT COLUMN: Details & Attachments (Appears SECOND on Mobile) */}
+          <div className="space-y-6 overflow-y-auto pr-2 custom-scrollbar lg:col-start-1 lg:col-span-2 lg:row-start-1">
             <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
               <div className="space-y-1 mb-4">
                 <label className="text-xs text-neutral-500 uppercase font-bold tracking-wider">
@@ -497,7 +669,7 @@ const TaskDetails = () => {
                   Task marked as Done. Review required.
                 </p>
                 {!showApprovalBox ? (
-                  <div className="flex gap-3">
+                  <div className="flex flex-wrap gap-3">
                     <button
                       onClick={() => {
                         setActionType("APPROVE");
@@ -706,7 +878,7 @@ const TaskDetails = () => {
             </div>
 
             {/* Activity Feed */}
-            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 flex flex-col h-[500px]">
+            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 sm:p-6 flex flex-col h-[400px] md:h-[500px]">
               <h3 className="text-white font-bold mb-4 flex items-center gap-2 shrink-0">
                 <MessageSquare size={18} /> Activity & Comments
               </h3>
@@ -750,171 +922,6 @@ const TaskDetails = () => {
                   </button>
                 </form>
               </div>
-            </div>
-          </div>
-
-          {/* RIGHT COLUMN: Metadata */}
-          <div className="space-y-6">
-            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-6 sticky top-0">
-              {/* Status */}
-              <div className="space-y-2">
-                <label className="text-xs text-neutral-500 uppercase font-bold tracking-wider">
-                  Status
-                </label>
-                <select
-                  value={task.status}
-                  onChange={(e) => handleUpdate("status", e.target.value)}
-                  className="w-full p-2.5 rounded-lg border font-medium outline-none appearance-none cursor-pointer bg-neutral-800 text-neutral-300 border-neutral-700 hover:bg-neutral-700"
-                >
-                  <option value="To Do">To Do</option>
-                  <option value="In Progress">In Progress</option>
-                  <option value="Done">Done</option>
-                </select>
-              </div>
-
-              {/* Gallery */}
-              <div className="space-y-2">
-                <label className="text-xs text-neutral-500 uppercase font-bold tracking-wider">
-                  Gallery
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {task.attachments
-                    ?.filter((a) => a.type === "IMAGE")
-                    .map((img, idx) => (
-                      <a
-                        key={idx}
-                        href={img.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="aspect-square bg-neutral-950 rounded-lg border border-neutral-800 overflow-hidden hover:opacity-80 transition-opacity"
-                      >
-                        <img
-                          src={img.url}
-                          className="w-full h-full object-cover"
-                          alt="attachment"
-                        />
-                      </a>
-                    ))}
-                  {(!task.attachments ||
-                    task.attachments.filter((a) => a.type === "IMAGE")
-                      .length === 0) && (
-                    <div className="col-span-3 text-xs text-neutral-600 py-2 italic text-center border border-neutral-800 border-dashed rounded-lg">
-                      No images uploaded
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Assignees & Request Help */}
-              <div className="space-y-2">
-                <label className="text-xs text-neutral-500 uppercase font-bold flex justify-between">
-                  <span>Assignees</span>
-                  <span className="text-[10px] bg-neutral-800 px-1.5 rounded">
-                    {task.assignees?.length || 0}
-                  </span>
-                </label>
-                <div className="relative" ref={assigneeRef}>
-                  <button
-                    type="button"
-                    disabled={!isAdmin}
-                    onClick={() => setIsAssigneeOpen(!isAssigneeOpen)}
-                    className={`w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2.5 text-left flex justify-between items-center ${
-                      isAdmin ? "hover:border-neutral-700" : ""
-                    }`}
-                  >
-                    <div className="flex -space-x-2 overflow-hidden items-center h-6">
-                      {task.assignees && task.assignees.length > 0 ? (
-                        task.assignees.map((id) => {
-                          const mem = projectMembers.find(
-                            (m) => m.clerkId === id
-                          );
-                          if (!mem) return null;
-                          return (
-                            <img
-                              key={id}
-                              src={mem.photo}
-                              className="w-6 h-6 rounded-full ring-2 ring-neutral-900 bg-neutral-800 object-cover"
-                            />
-                          );
-                        })
-                      ) : (
-                        <span className="text-sm text-neutral-500 italic">
-                          Unassigned
-                        </span>
-                      )}
-                    </div>
-                    {isAdmin && (
-                      <ChevronDown size={14} className="text-neutral-500" />
-                    )}
-                  </button>
-                  {isAssigneeOpen && isAdmin && (
-                    <div className="absolute top-full left-0 mt-2 w-full bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl z-20 max-h-60 overflow-y-auto">
-                      {projectMembers.map((member) => (
-                        <div
-                          key={member.clerkId}
-                          onClick={() => handleToggleAssignee(member.clerkId)}
-                          className="flex items-center gap-3 px-3 py-2.5 hover:bg-neutral-800 cursor-pointer"
-                        >
-                          <div
-                            className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
-                              task.assignees?.includes(member.clerkId)
-                                ? "bg-blue-600 border-blue-600"
-                                : "border-neutral-600"
-                            }`}
-                          >
-                            {task.assignees?.includes(member.clerkId) && (
-                              <Check size={12} className="text-white" />
-                            )}
-                          </div>
-                          <span className="text-sm text-neutral-300 truncate">
-                            {member.firstName} {member.lastName}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {(isAssignee || isAdmin) && (
-                <div className="pt-2 relative" ref={inviteRef}>
-                  <button
-                    onClick={() => setIsInviteOpen(!isInviteOpen)}
-                    className="w-full flex items-center justify-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white py-2.5 rounded-lg text-sm font-medium border border-neutral-700"
-                  >
-                    <UserPlus size={16} /> Request Help
-                  </button>
-                  {isInviteOpen && (
-                    <div className="absolute top-full left-0 mt-2 w-full bg-neutral-900 border border-neutral-800 rounded-lg shadow-xl z-20 p-1">
-                      {projectMembers
-                        .filter((m) => !task.assignees?.includes(m.clerkId))
-                        .filter((m) => memberStatuses[m.clerkId] !== "on_leave") // Hide on-leave members
-                        .map((m) => (
-                          <div
-                            key={m.clerkId}
-                            onClick={() => handleInvite(m.clerkId)}
-                            className="flex items-center gap-3 px-3 py-2 hover:bg-neutral-800 cursor-pointer rounded-md"
-                          >
-                            <img
-                              src={m.photo}
-                              className="w-6 h-6 rounded-full"
-                            />
-                            <span className="text-sm text-neutral-300">
-                              {m.firstName}
-                            </span>
-                          </div>
-                        ))}
-                      {projectMembers
-                        .filter((m) => !task.assignees?.includes(m.clerkId))
-                        .filter((m) => memberStatuses[m.clerkId] !== "on_leave").length === 0 && (
-                        <div className="px-3 py-2 text-sm text-neutral-500 text-center">
-                          No available members
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           </div>
         </div>
