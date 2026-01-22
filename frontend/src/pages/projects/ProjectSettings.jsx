@@ -9,7 +9,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import api from "../../services/api";
-import { useAuth, useUser } from "@clerk/clerk-react";
+import { useAuth } from "@clerk/clerk-react";
 import PageTransition from "../../components/common/PageTransition";
 
 const ProjectSettings = () => {

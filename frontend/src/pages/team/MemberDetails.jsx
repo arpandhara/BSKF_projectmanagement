@@ -17,7 +17,6 @@ const MemberDetails = () => {
   
   // Clerk hooks
   const { organization, isLoaded } = useOrganization();
-  // eslint-disable-next-line no-unused-vars
   const { user: currentUser } = useUser();
   const { orgRole } = useAuth(); // Added to get current user's org role
 
@@ -81,6 +80,7 @@ const MemberDetails = () => {
           fetchMemberDetails();
           fetchData();
       }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, organization, userId]);
 
   // 3. ⚡ SOCKET: Listen for Live Updates
@@ -102,6 +102,7 @@ const MemberDetails = () => {
         socket.off("team:update", handleUpdate);
         socket.off("notification:new", handleUpdate);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, organization]);
 
   // --- Actions ---

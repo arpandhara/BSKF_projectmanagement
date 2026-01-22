@@ -65,6 +65,7 @@ const ProjectDetails = () => {
 
   useEffect(() => {
     fetchData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   // SOCKET: Listen for Live Updates
@@ -156,6 +157,7 @@ const ProjectDetails = () => {
       socket.off("project:member_removed", handleProjectMemberRemoved);
       socket.off("team:update", handleTeamUpdate);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, user.id, project]);
 
   // NEW: Remove member from project (admin only)

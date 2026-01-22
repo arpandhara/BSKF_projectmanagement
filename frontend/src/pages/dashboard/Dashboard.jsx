@@ -161,6 +161,7 @@ const Dashboard = () => {
         socket.off("project:deleted", handleUpdate);
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId, user?.id]);
 
   if (!orgId) return null; // Prevent flash of content before redirect

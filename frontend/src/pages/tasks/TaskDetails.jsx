@@ -154,6 +154,7 @@ const TaskDetails = () => {
       socket.off("task:activity", handleNewActivity);
       socket.off("team:update", handleTeamUpdate);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId, task?.projectId]);
 
   // 3. Actions

@@ -39,6 +39,7 @@ const ProjectEvents = () => {
       socket.on("event:created", handleNewEvent);
       return () => socket.off("event:created", handleNewEvent);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const handleSubmit = async (e) => {

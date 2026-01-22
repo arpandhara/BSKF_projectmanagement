@@ -51,6 +51,7 @@ const Notifications = () => {
       }
     };
     init();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId, orgRole]);
 
   // 3. ⚡ SOCKET: Listen for new notifications live

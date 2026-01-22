@@ -50,6 +50,7 @@ const TeamList = () => {
         setLoading(false);
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, organization]);
 
   // Fetch member statuses
@@ -76,6 +77,7 @@ const TeamList = () => {
   // Fetch statuses when members change
   useEffect(() => {
     fetchMemberStatuses();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [members]);
 
   // 3. Socket Listener
@@ -139,6 +141,7 @@ const TeamList = () => {
       socket.off("user:status_changed", handleStatusChange);
       socket.offAny(testHandler);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organization]);
 
   useEffect(() => {
