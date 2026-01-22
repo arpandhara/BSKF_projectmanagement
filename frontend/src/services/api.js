@@ -6,6 +6,7 @@ const api = axios.create({
 });
 
 export const setupInterceptors = (getToken) => {
+  // Request interceptor - Add auth token
   api.interceptors.request.use(
     async (config) => {
       // 1. Get the token from Clerk
@@ -18,6 +19,31 @@ export const setupInterceptors = (getToken) => {
       return config;
     },
     (error) => Promise.reject(error)
+  );
+
+  // Response interceptor - Auto-retry on server errors
+  api.interceptors.response.use(
+    response => response,
+    async error => {
+      const { config } = error;
+
+      // Initialize retry count
+      if (!config.retryCount) config.retryCount = 0;
+
+      // Retry on 5xx errors (server errors)
+      if (config.retryCount < 2 && error.response?.status >= 500) {
+        config.retryCount += 1;
+
+        // Exponential backoff: wait 500ms, then 1000ms
+        const delay = config.retryCount * 500;
+        await new Promise(resolve => setTimeout(resolve, delay));
+
+        console.log(`Retrying request (attempt ${config.retryCount}/2)...`);
+        return api(config);
+      }
+
+      return Promise.reject(error);
+    }
   );
 };
 
