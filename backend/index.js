@@ -1,6 +1,6 @@
 import express from "express";
 import dotenv from "dotenv";
-import { createServer } from "http"; 
+import { createServer } from "http";
 import { initializeSocket } from "./socket/socket.js"; // Import socket init
 
 await dotenv.config();
@@ -22,7 +22,7 @@ import { deleteExpiredTasks } from "./controllers/taskController.js";
 await connectDB();
 
 const app = express();
-const httpServer = createServer(app); 
+const httpServer = createServer(app);
 
 
 const io = initializeSocket(httpServer);
@@ -34,7 +34,11 @@ app.set('trust proxy', 1);
 
 app.use(helmet());
 app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:5173",
+  origin: [
+    "http://localhost:5173", // Local dev
+    "https://bskf-projectmanagement-lwh7jbk51-susthayis-projects.vercel.app", // Vercel preview
+    process.env.CLIENT_URL // Production URL from env
+  ].filter(Boolean), // Remove undefined values
   credentials: true
 }));
 app.use(
