@@ -6,6 +6,8 @@ import {
   ClerkLoaded,
   ClerkLoading,
 } from "@clerk/clerk-react";
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import { connectSocket, disconnectSocket } from "./services/socket";
 import { setupInterceptors } from "./services/api";
 
@@ -99,6 +101,8 @@ const App = () => {
           </Routes>
         </Suspense>
       </ClerkLoaded>
+      <Analytics />
+      <SpeedInsights />
     </>
   );
 };
