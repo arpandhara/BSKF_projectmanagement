@@ -5,8 +5,7 @@ import User from "../models/User.js";
 import Project from "../models/Project.js";
 import Activity from "../models/Activity.js";
 import { deleteFileFromUrl } from "../utils/supabase.js";
-
-
+import redis from "../config/redisClient.js"; // 👈 Import Redis
 
 const escapeHtml = (unsafe) => {
   if (typeof unsafe !== 'string') return unsafe;
@@ -28,6 +27,18 @@ const getTasks = async (req, res) => {
     const orgRole = req.auth?.sessionClaims?.o?.rol;
     const isAdmin = orgRole === "org:admin" || orgRole === "admin";
 
+    // 1. Generate Cache Key
+    // Admin sees all, Member sees assigned.
+    const cacheKey = isAdmin
+      ? `tasks:project:${projectId}:all`
+      : `tasks:project:${projectId}:user:${userId}`;
+
+    // 2. Try Cache
+    const cachedTasks = await redis.get(cacheKey);
+    if (cachedTasks) {
+      return res.json(JSON.parse(cachedTasks));
+    }
+
     let query = { projectId };
 
     if (!isAdmin) {
@@ -36,6 +47,10 @@ const getTasks = async (req, res) => {
     }
 
     const tasks = await Task.find(query).sort({ createdAt: -1 }).lean();
+
+    // 3. Set Cache (60s TTL)
+    await redis.setex(cacheKey, 60, JSON.stringify(tasks));
+
     res.json(tasks);
   } catch (error) {
     console.error("Get Tasks Error:", error);
@@ -64,6 +79,12 @@ const createTask = async (req, res) => {
 
     const task = new Task(req.body);
     const createdTask = await task.save();
+
+    // Invalidate Caches
+    // We clear ALL tasks cache for this project to be safe
+    // Since we can't easily iterate all users, we reply on short TTL (60s) for users
+    // But we MUST clear the ADMIN (all) cache
+    await redis.del(`tasks:project:${createdTask.projectId}:all`);
 
     // Broadcast to Project Room (Fast enough to keep here)
     const io = req.app.get("io");
@@ -154,6 +175,9 @@ const deleteTask = async (req, res) => {
 
     // 4. DELETE THE TASK
     await task.deleteOne();
+
+    // Invalidate Cache
+    await redis.del(`tasks:project:${projectId}:all`);
 
     // 5. SOCKET EVENTS
     const io = req.app.get("io");
@@ -277,6 +301,9 @@ const updateTask = async (req, res) => {
     Object.assign(task, updates);
     await task.save();
 
+    // Invalidate Cache
+    await redis.del(`tasks:project:${task.projectId}:all`);
+
     const io = req.app.get("io");
 
     // 4. Create Activity Record if something changed
@@ -392,6 +419,9 @@ const respondToTaskInvite = async (req, res) => {
         { new: true } // Return updated doc
       );
 
+      // Invalidate Cache
+      await redis.del(`tasks:project:${updatedTask.projectId}:all`);
+
       // Update project board with new assignee
       if (io) {
         io.to(`project_${notification.projectId}`).emit("task:updated", updatedTask);
@@ -450,6 +480,9 @@ const approveTask = async (req, res) => {
 
     await task.save();
 
+    // Invalidate Cache
+    await redis.del(`tasks:project:${task.projectId}:all`);
+
     // Socket Update
     const io = req.app.get("io");
     if (io) io.to(`project_${task.projectId}`).emit("task:updated", task);
@@ -498,6 +531,9 @@ const disapproveTask = async (req, res) => {
     });
 
     await task.save();
+
+    // Invalidate Cache
+    await redis.del(`tasks:project:${task.projectId}:all`);
 
     const io = req.app.get("io");
     if (io) io.to(`project_${task.projectId}`).emit("task:updated", task);
@@ -582,6 +618,9 @@ const deleteExpiredTasks = async (io) => {
 
       // Finally, delete the task document
       await task.deleteOne();
+
+      // Invalidate Cache
+      await redis.del(`tasks:project:${task.projectId}:all`);
     }
 
     console.log(`🧹 Auto-deleted ${tasksToDelete.length} approved tasks and their files.`);
@@ -621,6 +660,8 @@ const addTaskActivity = async (req, res) => {
         type: metadata.fileType || 'IMAGE'
       });
       await task.save();
+      // Invalidate Cache
+      await redis.del(`tasks:project:${task.projectId}:all`);
     }
 
     // Emit Socket Event

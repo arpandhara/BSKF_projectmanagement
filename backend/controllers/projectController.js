@@ -6,6 +6,7 @@ import Event from "../models/Event.js";
 import Activity from "../models/Activity.js";
 import { deleteFileFromUrl } from "../utils/supabase.js";
 import { createClerkClient } from "@clerk/clerk-sdk-node";
+import redis from "../config/redisClient.js";
 
 // @desc    Get all projects
 const getProjects = async (req, res) => {
@@ -14,6 +15,15 @@ const getProjects = async (req, res) => {
     const orgId = req.auth.orgId || req.query.orgId;
     let query;
     const targetUserId = req.query.userId || userId;
+
+    // Generate Cache Key
+    const cacheKey = `projects:${orgId || 'personal'}:${targetUserId}`;
+
+    // 1. Try fetching from Redis
+    const cachedProjects = await redis.get(cacheKey);
+    if (cachedProjects) {
+      return res.json(JSON.parse(cachedProjects));
+    }
 
     // Check for admin role
     const orgRole = req.auth?.sessionClaims?.o?.rol;
@@ -34,6 +44,10 @@ const getProjects = async (req, res) => {
     }
 
     const projects = await Project.find(query).sort({ createdAt: -1 }).lean();
+
+    // 2. Save to Redis (TTL: 60 seconds - Lists change frequently)
+    await redis.setex(cacheKey, 60, JSON.stringify(projects));
+
     res.json(projects);
   } catch (error) {
     console.error(error);
@@ -44,8 +58,19 @@ const getProjects = async (req, res) => {
 // @desc    Get single project by ID
 const getProjectById = async (req, res) => {
   try {
-    const project = await Project.findById(req.params.id).lean();
+    const { id } = req.params;
+    const cacheKey = `project:${id}`;
+
+    // 1. Try Cache
+    const cachedProject = await redis.get(cacheKey);
+    if (cachedProject) {
+      return res.json(JSON.parse(cachedProject));
+    }
+
+    const project = await Project.findById(id).lean();
     if (project) {
+      // 2. Save to Cache (TTL: 5 minutes - Details change less often)
+      await redis.setex(cacheKey, 300, JSON.stringify(project));
       res.json(project);
     } else {
       res.status(404).json({ message: "Project not found" });
@@ -81,6 +106,12 @@ const createProject = async (req, res) => {
     });
 
     const createdProject = await project.save();
+
+    // Clear Project List Cache for this Org/User
+    // Note: We can't easily clear *all* user variations, but we can clear the likely ones.
+    // For now, relies on 60s TTL expiration for lists.
+    const listCacheKey = `projects:${orgId || 'personal'}:${userId}`;
+    await redis.del(listCacheKey);
 
     // Broadcast valid creation
     const io = req.app.get("io");
@@ -134,6 +165,14 @@ const deleteProject = async (req, res) => {
       Event.deleteMany({ projectId: project._id }),
       project.deleteOne()
     ]);
+
+    // Invalidate Cache
+    await redis.del(`project:${req.params.id}`);
+
+    // We can't easily know who accessed the list cache, but we try the owner
+    if (project.ownerId) {
+      await redis.del(`projects:${orgId || 'personal'}:${project.ownerId}`);
+    }
 
     // 4. Socket Broadcast
     const io = req.app.get("io");
@@ -201,6 +240,10 @@ const addProjectMember = async (req, res) => {
 
     project.members.push(userToAdd.clerkId);
     await project.save();
+
+    // Invalidate Cache
+    await redis.del(`project:${req.params.id}`);
+    await redis.del(`projects:${project.orgId || 'personal'}:${userToAdd.clerkId}`); // Clear for the added user
 
     // Create Notification
     const note = await Notification.create({
@@ -271,6 +314,10 @@ const updateProjectSettings = async (req, res) => {
 
     await project.save();
 
+    // Invalidate Cache
+    await redis.del(`project:${id}`);
+    // We let the list cache expire naturally (60s)
+
     res.json(project);
   } catch (error) {
     console.error("Update failed:", error); // Log error for debugging
@@ -294,6 +341,10 @@ const removeProjectMember = async (req, res) => {
       { projectId: id },
       { $pull: { assignees: userId } }
     );
+
+    // Invalidate Cache
+    await redis.del(`project:${id}`);
+    await redis.del(`projects:${project.orgId || 'personal'}:${userId}`);
 
     console.log(`✅ Removed ${userId} from project and ${updatedTasks.modifiedCount} tasks`);
 

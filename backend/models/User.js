@@ -38,7 +38,7 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-userSchema.index({ clerkId: 1 });
-userSchema.index({ email: 1 }); // For email lookups
+// userSchema.index({ clerkId: 1 }); // Implicitly created by unique: true
+// userSchema.index({ email: 1 }); // Implicitly created by unique: true
 
 export default mongoose.model("User", userSchema);

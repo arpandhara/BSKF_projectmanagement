@@ -27,7 +27,7 @@ const projectSchema = mongoose.Schema(
   }
 );
 
-projectSchema.index({ orgId: 1 });
+// projectSchema.index({ orgId: 1 }); // Covered by compound index { orgId: 1, status: 1 }
 projectSchema.index({ ownerId: 1 });
 projectSchema.index({ members: 1 });
 projectSchema.index({ orgId: 1, status: 1 }); // Compound index for org projects by status

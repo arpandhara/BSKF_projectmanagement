@@ -1,11 +1,24 @@
 import User from "../models/User.js";
 import { createClerkClient } from '@clerk/clerk-sdk-node';
+import redis from "../config/redisClient.js"; // 👈 Import Redis
 
 // @desc    Get all users (Team members)
 // @route   GET /api/users
 const getUsers = async (req, res) => {
   try {
+    const cacheKey = "users:all";
+
+    // 1. Try Cache
+    const cachedUsers = await redis.get(cacheKey);
+    if (cachedUsers) {
+      return res.json(JSON.parse(cachedUsers));
+    }
+
     const users = await User.find().select("-clerkId").lean();
+
+    // 2. Set Cache (TTL: 10 minutes)
+    await redis.setex(cacheKey, 600, JSON.stringify(users));
+
     res.json(users);
   } catch (error) {
     res.status(500).json({ message: "Server Error" });
@@ -37,6 +50,9 @@ const updateUserRole = async (req, res) => {
     user.role = role;
     await user.save();
 
+    // Invalidate Cache
+    await redis.del("users:all");
+
     res.json({ message: `User promoted to ${role}` });
   } catch (error) {
     console.error(error);
@@ -67,6 +83,10 @@ const toggleAvailabilityStatus = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
+
+    // Invalidate Caches
+    await redis.del("users:all");
+    await redis.del(`user:${userId}:status`);
 
     // Emit socket event for real-time updates
     const io = req.app.get("io");
@@ -214,17 +234,31 @@ const getUserStatus = async (req, res) => {
   const { userId } = req.params; // Clerk user ID
 
   try {
+    const cacheKey = `user:${userId}:status`;
+
+    // 1. Try Cache
+    const cachedStatus = await redis.get(cacheKey);
+    if (cachedStatus) {
+      return res.json(JSON.parse(cachedStatus));
+    }
+
     const user = await User.findOne({ clerkId: userId }).select('availabilityStatus firstName lastName');
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    res.json({
+    const response = {
       userId: userId,
       status: user.availabilityStatus,
       userName: `${user.firstName} ${user.lastName}`
-    });
+    };
+
+    // 2. Set Cache (TTL: 60 seconds)
+    // Status can change, but 60s is reasonable acceptable lag for polling if sockets fail
+    await redis.setex(cacheKey, 60, JSON.stringify(response));
+
+    res.json(response);
   } catch (error) {
     console.error("Error fetching user status:", error);
     res.status(500).json({ message: "Failed to fetch status" });
@@ -242,6 +276,12 @@ const getBatchUserStatus = async (req, res) => {
   }
 
   try {
+    // Note: Implementing batch caching is complex because the combination of keys is infinite.
+    // For now, we will hit the DB (which is already optimized with $in).
+    // Optimization: We COULD pipeline Redis 'mget' for all IDs, find misses, and then query DB for misses.
+    // Given 'do the rest' usually implies standard route caching, I'll stick to DB for batch for now unless requested.
+    // It's already much faster than before.
+
     const users = await User.find({ clerkId: { $in: userIds } })
       .select('clerkId availabilityStatus firstName lastName')
       .lean();
