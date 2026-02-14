@@ -231,4 +231,41 @@ const getUserStatus = async (req, res) => {
   }
 };
 
-export { getUsers, updateUserRole, toggleAvailabilityStatus, getUserStatus };
+// @desc    Get batch user availability status
+// @route   POST /api/users/status/batch
+// @access  Authenticated User
+const getBatchUserStatus = async (req, res) => {
+  const { userIds } = req.body; // Array of Clerk user IDs
+
+  if (!userIds || !Array.isArray(userIds)) {
+    return res.status(400).json({ message: "Invalid userIds array" });
+  }
+
+  try {
+    const users = await User.find({ clerkId: { $in: userIds } })
+      .select('clerkId availabilityStatus firstName lastName')
+      .lean();
+
+    const statusMap = {};
+    users.forEach(user => {
+      statusMap[user.clerkId] = {
+        status: user.availabilityStatus,
+        userName: `${user.firstName} ${user.lastName}`
+      };
+    });
+
+    // Fill in missing users with default 'active'
+    userIds.forEach(id => {
+      if (!statusMap[id]) {
+        statusMap[id] = { status: 'active', userName: 'Unknown' };
+      }
+    });
+
+    res.json(statusMap);
+  } catch (error) {
+    console.error("Error fetching batch user status:", error);
+    res.status(500).json({ message: "Failed to fetch batch status" });
+  }
+};
+
+export { getUsers, updateUserRole, toggleAvailabilityStatus, getUserStatus, getBatchUserStatus };

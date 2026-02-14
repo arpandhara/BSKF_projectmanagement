@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -48,13 +48,16 @@ const ProjectDetails = () => {
   const isAdmin = orgRole === "org:admin";
 
   // Initial Data Fetch
+  // Initial Data Fetch
   const fetchData = async () => {
     try {
-      const projRes = await api.get(`/projects/${id}`);
+      const [projRes, memRes, tasksRes] = await Promise.all([
+        api.get(`/projects/${id}`),
+        api.get(`/projects/${id}/members`),
+        api.get(`/tasks/project/${id}`),
+      ]);
       setProject(projRes.data);
-      const memRes = await api.get(`/projects/${id}/members`);
       setMembers(memRes.data);
-      const tasksRes = await api.get(`/tasks/project/${id}`);
       setTasks(tasksRes.data);
     } catch (error) {
       console.error("Error fetching project data", error);
@@ -191,18 +194,28 @@ const ProjectDetails = () => {
     }
   };
 
+  // Memoize member lookup for O(1) access
+  const memberMap = useMemo(() => {
+    return members.reduce((acc, mem) => {
+      acc[mem.clerkId] = mem;
+      return acc;
+    }, {});
+  }, [members]);
+
   // Filter Logic
-  const filteredTasks = tasks.filter((task) => {
-    const matchStatus =
-      filters.status === "All" || task.status === filters.status;
-    const matchType = filters.type === "All" || task.type === filters.type;
-    const matchPriority =
-      filters.priority === "All" || task.priority === filters.priority;
-    const matchAssignee =
-      filters.assignee === "All" ||
-      (task.assignees && task.assignees.includes(filters.assignee));
-    return matchStatus && matchType && matchPriority && matchAssignee;
-  });
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      const matchStatus =
+        filters.status === "All" || task.status === filters.status;
+      const matchType = filters.type === "All" || task.type === filters.type;
+      const matchPriority =
+        filters.priority === "All" || task.priority === filters.priority;
+      const matchAssignee =
+        filters.assignee === "All" ||
+        (task.assignees && task.assignees.includes(filters.assignee));
+      return matchStatus && matchType && matchPriority && matchAssignee;
+    });
+  }, [tasks, filters]);
 
   // Filter Options
   const statusOptions = ["All", "To Do", "In Progress", "Done"];
@@ -478,9 +491,7 @@ const ProjectDetails = () => {
                         {task.assignees && task.assignees.length > 0 ? (
                           <div className="flex -space-x-2 overflow-hidden">
                             {task.assignees.map((assigneeId) => {
-                              const member = members.find(
-                                (m) => m.clerkId === assigneeId
-                              );
+                              const member = memberMap[assigneeId];
                               if (!member) return null;
                               return (
                                 <img

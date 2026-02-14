@@ -65,10 +65,11 @@ const TaskDetails = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const taskRes = await api.get(`/tasks/${taskId}`);
+        const [taskRes, actRes] = await Promise.all([
+          api.get(`/tasks/${taskId}`),
+          api.get(`/tasks/${taskId}/activity`),
+        ]);
         setTask(taskRes.data);
-
-        const actRes = await api.get(`/tasks/${taskId}/activity`);
         setActivities(actRes.data);
 
         if (taskRes.data.projectId) {
@@ -89,16 +90,19 @@ const TaskDetails = () => {
   // Fetch member availability statuses
   useEffect(() => {
     const fetchStatuses = async () => {
-      const statusMap = {};
-      for (const member of projectMembers) {
-        try {
-          const res = await api.get(`/users/${member.clerkId}/status`);
-          statusMap[member.clerkId] = res.data.status;
-        } catch {
-          statusMap[member.clerkId] = "active"; // Default to active if fetch fails
-        }
+      if (!projectMembers.length) return;
+      
+      const userIds = projectMembers.map((m) => m.clerkId);
+      try {
+        const res = await api.post("/users/status/batch", { userIds });
+        const statusMap = {};
+        Object.entries(res.data).forEach(([uid, data]) => {
+          statusMap[uid] = data.status;
+        });
+        setMemberStatuses(statusMap);
+      } catch (error) {
+        console.error("Failed to fetch batch statuses", error);
       }
-      setMemberStatuses(statusMap);
     };
 
     if (projectMembers.length > 0) {

@@ -57,17 +57,14 @@ const TeamList = () => {
   const fetchMemberStatuses = async () => {
     if (!members.length) return;
     
+    const userIds = members.map(mem => mem.publicUserData.userId);
+
     try {
-      const statusPromises = members.map(mem => 
-        api.get(`/users/${mem.publicUserData.userId}/status`).catch(() => ({ data: { status: "active" } }))
-      );
-      const statuses = await Promise.all(statusPromises);
-      
+      const res = await api.post("/users/status/batch", { userIds });
       const statusMap = {};
-      members.forEach((mem, idx) => {
-        statusMap[mem.publicUserData.userId] = statuses[idx]?.data?.status || "active";
+      Object.entries(res.data).forEach(([uid, data]) => {
+        statusMap[uid] = data.status;
       });
-      
       setMemberStatus(statusMap);
     } catch (error) {
       console.error("Failed to fetch member statuses", error);
