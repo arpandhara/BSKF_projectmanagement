@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useUser, useAuth } from "@clerk/clerk-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import NewProjectModal from "../../components/specific/NewProjectModal";
 import api from "../../services/api";
 import { getSocket } from "../../services/socket";
@@ -19,17 +20,34 @@ import PageTransition from "../../components/common/PageTransition";
 const ProjectList = () => {
   const navigate = useNavigate();
   const { user } = useUser();
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
   const { orgId, orgRole } = useAuth();
+  const queryClient = useQueryClient();
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  // Projects and Loading are now managed by React Query
+  // const [projects, setProjects] = useState([]); 
+  // const [loading, setLoading] = useState(true);
 
   // Track which dropdown is open (by project ID)
   const [openMenuId, setOpenMenuId] = useState(null);
 
   const containerRef = useRef(null);
+  
+  const isAdmin = orgRole === "org:admin";
 
-  // Re-run animation whenever the 'projects' array changes (e.g. after loading)
+  // 1. Fetch Projects (React Query)
+  const { data: projects = [], isLoading: loading } = useQuery({
+    queryKey: ["projects", orgId],
+    queryFn: async () => {
+      const res = await api.get("/projects", { params: { orgId: orgId || "" } });
+      return Array.isArray(res.data) ? res.data : [];
+    },
+    enabled: true, // Always try to fetch, backend handles auth
+    staleTime: 1000 * 60 * 5, // 5 min stale
+  });
+
+  // Re-run animation whenever the 'projects' array changes
   useGSAP(() => {
     if (projects.length > 0) {
       gsap.from(".project-card", {
@@ -41,28 +59,78 @@ const ProjectList = () => {
         clearProps: "all" // Cleanup inline styles after animation
       });
     }
-  }, { scope: containerRef, dependencies: [projects] });
+  }, { scope: containerRef, dependencies: [projects, searchTerm] }); // Re-animate on search too
 
-  const isAdmin = orgRole === "org:admin";
-
-  const fetchProjects = async () => {
-    try {
-      const response = await api.get("/projects", {
-        params: { orgId: orgId || "" },
-      });
-      setProjects(Array.isArray(response.data) ? response.data : []);
-    } catch (error) {
-      console.error("Failed to fetch projects", error);
-    } finally {
-      setLoading(false);
+  // Helper: Get Status Color
+  const getStatusColor = (status) => {
+    switch (status) {
+      case "COMPLETED":
+      case "DONE":
+        return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+      case "ON_HOLD":
+        return "bg-orange-500/20 text-orange-400 border-orange-500/30";
+      case "ARCHIVED":
+        return "bg-neutral-500/20 text-neutral-400 border-neutral-500/30";
+      case "ACTIVE":
+      default:
+        return "bg-green-500/20 text-green-400 border-green-500/30";
+    }
+  };
+  
+  const getStatusBorder = (status) => {
+     switch (status) {
+      case "COMPLETED":
+      case "DONE":
+        return "border-l-4 border-l-blue-500";
+      case "ON_HOLD":
+        return "border-l-4 border-l-orange-500";
+      case "ARCHIVED":
+        return "border-l-4 border-l-neutral-500";
+      case "ACTIVE":
+      default:
+        return "border-l-4 border-l-green-500";
     }
   };
 
-  useEffect(() => {
-    fetchProjects();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgId]);
+  // Filter Projects
+  const filteredProjects = projects.filter(p => 
+    p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.description?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
+  // 2. Delete Mutation (Optimistic)
+  const deleteProjectMutation = useMutation({
+    mutationFn: async (projectId) => {
+      await api.delete(`/projects/${projectId}`);
+    },
+    onMutate: async (projectId) => {
+       // Stop refetches
+       await queryClient.cancelQueries(["projects", orgId]);
+       
+       // Snapshot
+       const previousProjects = queryClient.getQueryData(["projects", orgId]);
+
+       // Optimistic Update
+       queryClient.setQueryData(["projects", orgId], (old) => 
+         old ? old.filter(p => (p._id || p.id) !== projectId) : []
+       );
+
+       // Close menu
+       setOpenMenuId(null);
+       
+       return { previousProjects };
+    },
+    onError: (err, projectId, context) => {
+      queryClient.setQueryData(["projects", orgId], context.previousProjects);
+      alert("Failed to delete project");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries(["projects", orgId]);
+      window.dispatchEvent(new Event("projectUpdate")); // Keep legacy event if needed
+    },
+  });
+
+  // Socket Logic (Cache Updates)
   useEffect(() => {
     const socket = getSocket();
     if (!socket) return;
@@ -72,28 +140,29 @@ const ProjectList = () => {
     }
 
     const handleProjectCreated = (newProject) => {
-      // Logic: 
-      // 1. If Admin -> Always Show
-      // 2. If Member -> Show only if I am the owner OR I am a member
       const isOwner = newProject.ownerId === user?.id;
       const isMember = newProject.members?.includes(user?.id);
 
       if (isAdmin || isOwner || isMember) {
-         setProjects((prev) => [newProject, ...prev]); 
+         queryClient.setQueryData(["projects", orgId], (old) => {
+            if (!old) return [newProject];
+            if (old.some(p => (p._id || p.id) === (newProject._id || newProject.id))) return old;
+            return [newProject, ...old];
+         });
       }
     };
 
     const handleProjectAssigned = (project) => {
-       setProjects((prev) => {
-         // Prevent duplicates
-         if (prev.some((p) => (p._id || p.id) === (project._id || project.id))) return prev;
-         return [project, ...prev];
+       queryClient.setQueryData(["projects", orgId], (old) => {
+          if (!old) return [project];
+          if (old.some((p) => (p._id || p.id) === (project._id || project.id))) return old;
+          return [project, ...old];
        });
     };
 
     const handleProjectRemovedOrDeleted = (projectId) => {
-      setProjects((prev) =>
-        prev.filter((p) => (p._id || p.id) !== projectId)
+      queryClient.setQueryData(["projects", orgId], (old) => 
+        old ? old.filter((p) => (p._id || p.id) !== projectId) : []
       );
     };
 
@@ -108,27 +177,13 @@ const ProjectList = () => {
       socket.off("project:removed_from", handleProjectRemovedOrDeleted);
       socket.off("project:deleted", handleProjectRemovedOrDeleted);
     };
-  }, [orgId, isAdmin, user?.id]);
+  }, [orgId, isAdmin, user?.id, queryClient]);
 
   // Handle Delete
-  const handleDelete = async (e, projectId) => {
-    e.stopPropagation(); // Stop navigation to details
-    if (!window.confirm("Are you sure you want to delete this project?"))
-      return;
-
-    try {
-      await api.delete(`/projects/${projectId}`);
-
-      window.dispatchEvent(new Event("projectUpdate"));
-
-      setProjects(
-        projects.filter((p) => p._id !== projectId && p.id !== projectId)
-      );
-      setOpenMenuId(null);
-    } catch (error) {
-      console.error("Failed to delete project", error);
-      alert("Failed to delete project");
-    }
+  const handleDelete = (e, projectId) => {
+    e.stopPropagation();
+    if (!window.confirm("Are you sure you want to delete this project?")) return;
+    deleteProjectMutation.mutate(projectId);
   };
 
   // Toggle Dropdown
@@ -146,34 +201,50 @@ const ProjectList = () => {
         {/* Click anywhere to close menu */}
 
         {/* Header */}
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-2xl font-bold">Projects</h1>
             <p className="text-neutral-400 mt-1">
               Manage and track your projects
             </p>
           </div>
-          {isAdmin && (
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 transition-colors"
-            >
-              <Plus size={16} /> New Project
-            </button>
-          )}
+          
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+             {/* Search Bar */}
+             <div className="relative flex-1 sm:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" size={16} />
+                <input 
+                  type="text" 
+                  placeholder="Search projects..." 
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full bg-neutral-900 border border-neutral-800 text-white text-sm rounded-lg pl-9 pr-4 py-2 focus:outline-none focus:border-blue-500 transition-colors"
+                />
+             </div>
+
+            {isAdmin && (
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 transition-colors shrink-0"
+              >
+                <Plus size={16} /> <span className="hidden sm:inline">New Project</span>
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* ... (Search bar section - keep as is) ... */}
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {projects.length > 0 ? (
-            projects.map((project) => {
+          {filteredProjects.length > 0 ? (
+            filteredProjects.map((project) => {
               const pid = project._id || project.id;
+              const statusColorClass = getStatusColor(project.status || "ACTIVE");
+              const statusBorderClass = getStatusBorder(project.status || "ACTIVE");
+
               return (
                 <div
                   key={pid}
                   onClick={() => navigate(`/projects/${pid}`)}
-                  className="project-card bg-neutral-900 border border-neutral-800 rounded-xl p-4 sm:p-6 hover:border-neutral-700 transition-all cursor-pointer group relative"
+                  className={`project-card bg-neutral-900 border border-neutral-800 rounded-xl p-4 sm:p-6 hover:border-neutral-700 transition-all cursor-pointer group relative overflow-hidden ${statusBorderClass}`}
                 >
                   {/* Card Header */}
                   <div className="flex justify-between items-start mb-4">
@@ -232,8 +303,8 @@ const ProjectList = () => {
 
                   {/* Status & Priority Tags */}
                   <div className="flex items-center justify-between">
-                    <span className="bg-green-500/20 text-green-400 text-xs px-2 py-1 rounded font-medium">
-                      {project.status || "ACTIVE"}
+                    <span className={`text-xs px-2 py-1 rounded font-medium border ${statusColorClass}`}>
+                      {project.status ? project.status.replace("_", " ") : "ACTIVE"}
                     </span>
                     <span
                       className={`text-xs font-bold uppercase ${
@@ -251,8 +322,8 @@ const ProjectList = () => {
               );
             })
           ) : (
-            <div className="col-span-2 text-center text-neutral-500 py-12">
-              No projects found.
+            <div className="col-span-2 text-center text-neutral-500 py-12 bg-neutral-900/50 rounded-xl border border-neutral-800 border-dashed">
+              {searchTerm ? `No projects found matching "${searchTerm}"` : "No projects found."}
             </div>
           )}
         </div>
@@ -260,7 +331,7 @@ const ProjectList = () => {
         <NewProjectModal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
-          onProjectCreated={fetchProjects}
+          onProjectCreated={() => queryClient.invalidateQueries(["projects", orgId])}
         />
       </div>
     </PageTransition>

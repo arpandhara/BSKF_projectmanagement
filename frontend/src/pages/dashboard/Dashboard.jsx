@@ -5,6 +5,7 @@ import { Folder, CheckCircle, Clock, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
 import { useAuth, useUser } from "@clerk/clerk-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getSocket } from "../../services/socket";
 import PageTransition from "../../components/common/PageTransition";
 
@@ -13,33 +14,66 @@ const Dashboard = () => {
   const { user } = useUser();
   const { orgId } = useAuth();
 
-  const [projects, setProjects] = useState([]);
-  const [myTasks, setMyTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [userStatus, setUserStatus] = useState("active"); // New: Track user availability status
+  const queryClient = useQueryClient();
+
+  const [userStatus, setUserStatus] = useState("active");
   const [statusLoading, setStatusLoading] = useState(false);
 
   const containerRef = useRef(null);
 
+  // --- QUERIES ---
+
+  // 1. Fetch Request: Projects (Shared Cache with ProjectList)
+  const { data: projects = [], isLoading: loadingProjects } = useQuery({
+    queryKey: ["projects", orgId],
+    queryFn: async () => {
+      const response = await api.get("/projects", {
+        params: { orgId: orgId || "" },
+      });
+      return Array.isArray(response.data) ? response.data : [];
+    },
+    enabled: !!orgId,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+
+  // 2. Fetch Request: My Tasks
+  const { data: myTasks = [], isLoading: loadingTasks } = useQuery({
+    queryKey: ["my-tasks", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const res = await api.get(`/tasks/user/${user.id}`);
+      return Array.isArray(res.data) ? res.data : [];
+    },
+    enabled: !!user?.id,
+    staleTime: 1000 * 60 * 2,
+  });
+
+  // Seed individual task cache from Dashboard
+  useEffect(() => {
+    if (myTasks.length > 0) {
+      myTasks.forEach(task => {
+        queryClient.setQueryData(["task", task._id], (old) => {
+           if (old && new Date(old.updatedAt) > new Date(task.updatedAt)) return old;
+           return task;
+        });
+      });
+    }
+  }, [myTasks, queryClient]);
+
+  const loading = loadingProjects || loadingTasks;
+
   useGSAP(
     () => {
-      // 1. Safety Check: If the component returned null (no orgId), stop here.
       if (!containerRef.current) return;
-
-      // 2. Use a Timeline for sequencing
-      const tl = gsap.timeline({ delay: 0.2 }); // Wait 0.2s for PageTransition to settle
-
-      // Animate Stat Cards (Sequence)
+      const tl = gsap.timeline({ delay: 0.2 });
       tl.from(".stat-card", {
         y: 30,
         opacity: 0,
         duration: 0.5,
-        stagger: 0.1, // 0.1s delay between each card start
-        ease: "back.out(1.7)", // Bounce effect
-        clearProps: "all" // Cleanup after animation
+        stagger: 0.1,
+        ease: "back.out(1.7)",
+        clearProps: "all"
       });
-
-      // Animate Main Content Areas (Slide in after cards)
       tl.from(".dashboard-section", {
         x: -15,
         opacity: 0,
@@ -47,22 +81,20 @@ const Dashboard = () => {
         stagger: 0.15,
         ease: "power2.out",
         clearProps: "all"
-      }, "-=0.2"); // Overlap slightly (start 0.2s before cards finish)
+      }, "-=0.2");
     },
     { 
       scope: containerRef, 
-      dependencies: [orgId] // 3. Re-run animation when orgId loads and view renders
+      dependencies: [orgId] 
     }
   );
 
-  // Redirect to Settings if no Org selected (Personal Account)
   useEffect(() => {
     if (!orgId) {
       navigate("/settings");
     }
   }, [orgId, navigate]);
 
-  // Fetch user's availability status
   const fetchUserStatus = async () => {
     if (!user?.id) return;
     try {
@@ -73,96 +105,69 @@ const Dashboard = () => {
     }
   };
 
-  // Toggle availability status
   const handleStatusToggle = async () => {
-    // Optimistic Update: Switch immediately
     const oldStatus = userStatus;
     const newStatus = userStatus === "active" ? "on_leave" : "active";
-    
-    setUserStatus(newStatus); // Update UI instantly
-    setStatusLoading(true); // Disable button processing
-
+    setUserStatus(newStatus);
+    setStatusLoading(true);
     try {
       await api.put("/users/status", { 
         status: newStatus,
-        orgId: orgId // Pass orgId so backend can find admins
+        orgId: orgId
       });
-      
-      const statusText = newStatus === "on_leave" ? "On Leave" : "Active";
-      console.log(`✅ Status changed to: ${statusText}`);
     } catch (error) {
       console.error("Failed to update status", error);
-      setUserStatus(oldStatus); // Revert on failure
+      setUserStatus(oldStatus);
       alert("Failed to update status. Please try again.");
     } finally {
       setStatusLoading(false);
     }
   };
 
-  const fetchProjects = async () => {
-    try {
-      const response = await api.get("/projects", {
-        params: { orgId: orgId || "" },
-      });
-      setProjects(Array.isArray(response.data) ? response.data : []);
-    } catch (error) {
-      console.error("Failed to load projects", error);
-    }
-  };
-
-  const fetchMyTasks = async () => {
-    if (!user?.id) return;
-    try {
-      const res = await api.get(`/tasks/user/${user.id}`);
-      setMyTasks(Array.isArray(res.data) ? res.data : []);
-    } catch (error) {
-      console.error("Failed to load tasks", error);
-    }
-  };
-
   useEffect(() => {
-    if (!orgId) return; // Skip fetching if redirecting
+    if (!orgId) return;
+    fetchUserStatus();
 
-    const initData = async () => {
-      setLoading(true);
-      await Promise.all([fetchProjects(), fetchMyTasks(), fetchUserStatus()]);
-      setLoading(false);
-    };
-
-    initData();
-
-    // 2. ⚡ SOCKET: Listen for updates
     const socket = getSocket();
 
-    // Handler to refresh data
     const handleUpdate = () => {
-      console.log("⚡ Dashboard refreshing due to socket event...");
-      fetchMyTasks();
-      fetchProjects();
+      console.log("⚡ Dashboard refreshing data...");
+      queryClient.invalidateQueries(["projects", orgId]);
+      queryClient.invalidateQueries(["my-tasks", user?.id]);
     };
 
-    // Legacy listeners (Keep for local updates)
-    window.addEventListener("taskUpdate", fetchMyTasks);
-    window.addEventListener("projectUpdate", fetchProjects);
-
     if (socket) {
-      // Refresh whenever a new notification arrives (Assignments, Project adds)
       socket.on("notification:new", handleUpdate);
       socket.on("dashboard:update", handleUpdate);
       socket.on("project:deleted", handleUpdate);
+      socket.on("task:assigned", handleUpdate);
+
+      // Instant Chat Update
+      socket.on("task:activity", (activity) => {
+         if (activity.userId === user.id) return;
+         
+         // Optimistically update My Tasks
+         queryClient.setQueryData(["my-tasks", user?.id], (oldTasks) => {
+            if (!oldTasks) return oldTasks;
+            return oldTasks.map(t => {
+               if (t._id === activity.taskId) {
+                  return { ...t, hasUnread: true };
+               }
+               return t;
+            });
+         });
+      });
     }
 
     return () => {
-      window.removeEventListener("taskUpdate", fetchMyTasks);
-      window.removeEventListener("projectUpdate", fetchProjects);
       if (socket) {
         socket.off("notification:new", handleUpdate);
         socket.off("dashboard:update", handleUpdate);
         socket.off("project:deleted", handleUpdate);
+        socket.off("task:assigned", handleUpdate);
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgId, user?.id]);
+  }, [orgId, user?.id, queryClient]);
 
   if (!orgId) return null; // Prevent flash of content before redirect
 
@@ -368,6 +373,7 @@ const Dashboard = () => {
                         priority={task.priority}
                         type={task.type}
                         status={task.status}
+                        hasUnread={task.hasUnread}
                       />
                     </div>
                   ))
@@ -429,7 +435,7 @@ const StatCard = ({ label, value, sub, Icon, color }) => (
   </div>
 );
 
-const TaskItem = ({ title, priority, type = "TASK", status }) => {
+const TaskItem = ({ title, priority, type = "TASK", status, hasUnread }) => {
   const getPriorityColor = (p) => {
     if (p === "HIGH") return "text-orange-400";
     if (p === "MEDIUM") return "text-blue-400";
@@ -444,6 +450,9 @@ const TaskItem = ({ title, priority, type = "TASK", status }) => {
         </h4>
         {status === "Done" && (
           <CheckCircle size={14} className="text-green-500" />
+        )}
+        {hasUnread && status !== "Done" && (
+           <div className="w-2 h-2 rounded-full bg-red-500 shrink-0 mt-1.5 animate-pulse"></div>
         )}
       </div>
 

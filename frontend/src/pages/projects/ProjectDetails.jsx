@@ -14,12 +14,15 @@ import {
   UserPlus,
   ChevronDown,
   X,
+  MessageSquare,
 } from "lucide-react";
-import { useUser, useAuth } from "@clerk/clerk-react";
+import { useUser, useAuth, useOrganization } from "@clerk/clerk-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import NewTaskModal from "../../components/specific/NewTaskModal";
 import api from "../../services/api";
 import { getSocket } from "../../services/socket";
 import ProjectEvents from "./ProjectEvents";
+import ProjectMembersModal from "../../components/specific/ProjectMembersModal";
 import PageTransition from "../../components/common/PageTransition";
 
 const ProjectDetails = () => {
@@ -27,14 +30,14 @@ const ProjectDetails = () => {
   const navigate = useNavigate();
   const { user } = useUser();
   const { orgRole } = useAuth();
+  const queryClient = useQueryClient();
 
-  const [project, setProject] = useState(null);
-  const [members, setMembers] = useState([]);
-  const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
-  const [newMemberEmail, setNewMemberEmail] = useState("");
+  const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
 
+  const { organization } = useOrganization();
+  const [orgMembers, setOrgMembers] = useState([]);
+  const [isFetchingOrgMembers, setIsFetchingOrgMembers] = useState(false);
   const [activeTab, setActiveTab] = useState("tasks");
 
   // Filter State
@@ -47,152 +50,209 @@ const ProjectDetails = () => {
 
   const isAdmin = orgRole === "org:admin";
 
-  // Initial Data Fetch
-  // Initial Data Fetch
-  const fetchData = async () => {
+  // --- QUERIES ---
+
+  // 1. Fetch Project
+  const { data: project, isLoading: loadingProject } = useQuery({
+    queryKey: ["project", id],
+    queryFn: async () => {
+      const res = await api.get(`/projects/${id}`);
+      return res.data;
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+
+  // 2. Fetch Project Members
+  const { data: members = [] } = useQuery({
+    queryKey: ["project-members", id],
+    queryFn: async () => {
+      const res = await api.get(`/projects/${id}/members`);
+      return res.data;
+    },
+    staleTime: 1000 * 60 * 10,
+  });
+
+  // 3. Fetch Tasks
+  const { data: tasks = [] } = useQuery({
+    queryKey: ["project-tasks", id],
+    queryFn: async () => {
+      const res = await api.get(`/tasks/project/${id}`);
+      return res.data;
+    },
+    staleTime: 1000 * 60 * 2,
+  });
+
+  // Seed individual task cache
+  useEffect(() => {
+    if (tasks.length > 0) {
+      tasks.forEach(task => {
+        queryClient.setQueryData(["task", task._id], (old) => {
+            if (old && new Date(old.updatedAt) > new Date(task.updatedAt)) return old;
+            return task;
+        });
+      });
+    }
+  }, [tasks, queryClient]);
+
+  const loading = loadingProject; // Main loading state
+
+  // --- MUTATIONS ---
+
+  // Toggle Member Mutation (Optimistic)
+  const memberToggleMutation = useMutation({
+    mutationFn: async (member) => {
+      const clerkId = member.publicUserData.userId;
+      const email = member.publicUserData.identifier;
+      const isMember = members.some(m => m.clerkId === clerkId);
+
+      if (isMember) {
+        await api.delete(`/projects/${id}/members/${clerkId}`);
+      } else {
+        await api.put(`/projects/${id}/members`, { email });
+      }
+    },
+    onMutate: async (member) => {
+      await queryClient.cancelQueries(["project-members", id]);
+      const previousMembers = queryClient.getQueryData(["project-members", id]);
+
+      const clerkId = member.publicUserData.userId;
+      const isMember = previousMembers?.some(m => m.clerkId === clerkId);
+
+      queryClient.setQueryData(["project-members", id], (old) => {
+         if (isMember) {
+           return old.filter(m => m.clerkId !== clerkId);
+         } else {
+           const newMember = {
+            _id: `temp_${Date.now()}`,
+            clerkId: clerkId,
+            firstName: member.publicUserData.firstName,
+            lastName: member.publicUserData.lastName,
+            email: member.publicUserData.identifier,
+            photo: member.publicUserData.imageUrl
+          };
+          return [...(old || []), newMember];
+         }
+      });
+      
+      return { previousMembers };
+    },
+    onError: (err, vars, context) => {
+       queryClient.setQueryData(["project-members", id], context.previousMembers);
+       alert("Failed to update member.");
+    },
+    onSettled: () => {
+       queryClient.invalidateQueries(["project-members", id]);
+    }
+  });
+
+  const handleMemberToggle = (member) => {
+    memberToggleMutation.mutate(member);
+  };
+
+  // Cache Organization Members (Fetch only once)
+  const fetchOrgMembers = async () => {
+    if (orgMembers.length > 0 || !organization) return;
+    
+    setIsFetchingOrgMembers(true);
     try {
-      const [projRes, memRes, tasksRes] = await Promise.all([
-        api.get(`/projects/${id}`),
-        api.get(`/projects/${id}/members`),
-        api.get(`/tasks/project/${id}`),
-      ]);
-      setProject(projRes.data);
-      setMembers(memRes.data);
-      setTasks(tasksRes.data);
+      const res = await organization.getMemberships({ pageSize: 100 });
+      setOrgMembers(res.data);
     } catch (error) {
-      console.error("Error fetching project data", error);
+      console.error("Failed to load organization members", error);
     } finally {
-      setLoading(false);
+      setIsFetchingOrgMembers(false);
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  const handleOpenMemberModal = () => {
+    setIsMemberModalOpen(true);
+    fetchOrgMembers();
+  };
 
   // SOCKET: Listen for Live Updates
   useEffect(() => {
     const socket = getSocket();
     if (!socket || !project) return;
 
-    // Join this project's room
     socket.emit("join_project", `project_${id}`);
-
-    // Join organization room to listen for team updates
     if (project.orgId) {
       socket.emit("join_org", project.orgId);
     }
 
-    // Define handlers
+    // Task Listeners
     const handleTaskCreated = (newTask) => {
-      if (!newTask || !newTask._id) return;
-      setTasks((prev) => {
-        if (prev.find((t) => t._id === newTask._id)) return prev;
-        return [newTask, ...prev];
+      queryClient.setQueryData(["project-tasks", id], (old) => {
+         if (!old) return [newTask];
+         if (old.find(t => t._id === newTask._id)) return old;
+         return [newTask, ...old];
       });
     };
 
     const handleTaskUpdated = (updatedTask) => {
-      setTasks((prev) =>
-        prev.map((t) => (t._id === updatedTask._id ? updatedTask : t))
-      );
+       queryClient.setQueryData(["project-tasks", id], (old) => 
+          old ? old.map(t => t._id === updatedTask._id ? updatedTask : t) : []
+       );
     };
 
     const handleTaskDeleted = (deletedTaskId) => {
-      setTasks((prev) => prev.filter((t) => t._id !== deletedTaskId));
+       queryClient.setQueryData(["project-tasks", id], (old) => 
+          old ? old.filter(t => t._id !== deletedTaskId) : []
+       );
     };
 
+    // New Activity (Chat) Listener
+    const handleTaskActivity = (activity) => {
+        // If I sent it, I've read it. If someone else sent it, it's unread.
+        if (activity.userId === user.id) return;
+
+        queryClient.setQueryData(["project-tasks", id], (oldTasks) => {
+            if (!oldTasks) return oldTasks;
+            return oldTasks.map(t => {
+                if (t._id === activity.taskId) {
+                    return { ...t, hasUnread: true };
+                }
+                return t;
+            });
+        });
+    };
+
+    // Member Listeners
     const handleProjectMemberRemoved = (removedUserId) => {
       if (removedUserId === user.id) {
         alert("You have been removed from this project.");
         navigate("/projects");
       }
-      setMembers((prev) => prev.filter((m) => m.clerkId !== removedUserId));
+      queryClient.setQueryData(["project-members", id], (old) => 
+         old ? old.filter(m => m.clerkId !== removedUserId) : []
+      );
     };
 
-    // Handle team updates (when members are removed from org)
-    const handleTeamUpdate = async () => {
-      console.log("👥 Team update received, refreshing member list...");
-      try {
-        const memRes = await api.get(`/projects/${id}/members`);
-        setMembers(memRes.data);
-      } catch (error) {
-        console.error("Failed to refresh members:", error);
-      }
+    const handleTeamUpdate = () => {
+       queryClient.invalidateQueries(["project-members", id]);
     };
 
-    // NEW: Remove member from project (admin only)
-    // MOVED OUTSIDE USEEFFECT
-    /*
-    const handleRemoveMember = async (memberId) => {
-      if (!window.confirm("Remove this member from the project? They will be removed from all tasks.")) return;
-
-      try {
-        await api.delete(`/projects/${id}/members/${memberId}`);
-        // Update will come via socket, but optimistic update for faster UI
-        setMembers((prev) => prev.filter((m) => m.clerkId !== memberId));
-      } catch (error) {
-        console.error("Failed to remove member", error);
-        alert("Failed to remove member");
-      }
-    };
-    */
-
-    // 🆕 NEW: Handle team updates (when members are removed from org)
-
-    // Attach listeners
-    socket.on("task:created", handleTaskCreated);
     socket.on("task:updated", handleTaskUpdated);
     socket.on("task:deleted", handleTaskDeleted);
+    socket.on("task:activity", handleTaskActivity); // 👈 Add listener
     socket.on("project:member_removed", handleProjectMemberRemoved);
     socket.on("team:update", handleTeamUpdate);
 
-    // Cleanup: Leave room on unmount
     return () => {
       socket.emit("leave_project", `project_${id}`);
-      if (project.orgId) {
-        // Note: We don't explicitly leave the org room as it's needed elsewhere
-      }
       socket.off("task:created", handleTaskCreated);
       socket.off("task:updated", handleTaskUpdated);
       socket.off("task:deleted", handleTaskDeleted);
+      socket.off("task:activity", handleTaskActivity); // 👈 Remove listener
       socket.off("project:member_removed", handleProjectMemberRemoved);
       socket.off("team:update", handleTeamUpdate);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, user.id, project]);
+  }, [id, user.id, project, queryClient]);
 
   // NEW: Remove member from project (admin only)
-  const handleRemoveMember = async (memberId) => {
-    if (!window.confirm("Remove this member from the project? They will be removed from all tasks.")) return;
-
-    try {
-      await api.delete(`/projects/${id}/members/${memberId}`);
-      // Update will come via socket, but optimistic update for faster UI
-      setMembers((prev) => prev.filter((m) => m.clerkId !== memberId));
-    } catch (error) {
-      console.error("Failed to remove member", error);
-      alert("Failed to remove member");
-    }
-  };
-
-  const handleAddMember = async (e) => {
-    e.preventDefault();
-    if (!newMemberEmail) return;
-    try {
-      const res = await api.put(`/projects/${id}/members`, {
-        email: newMemberEmail,
-      });
-      if (res.data.member) {
-        setMembers((prev) => [...prev, res.data.member]);
-      }
-      setNewMemberEmail("");
-      alert("Member added successfully!");
-    } catch (error) {
-      alert(error.response?.data?.message || "Failed to add member");
-    }
-  };
+  // NEW: Remove member from project (admin only)
+  // Logic moved to ProjectMembersModal
+  
+  // Logic for adding member moved to ProjectMembersModal
 
   // Memoize member lookup for O(1) access
   const memberMap = useMemo(() => {
@@ -303,9 +363,19 @@ const ProjectDetails = () => {
 
         {/* Team Section */}
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
-          <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-            <Users size={18} /> Project Team
-          </h2>
+          <div className="flex justify-between items-start mb-4">
+            <h2 className="text-lg font-bold flex items-center gap-2">
+              <Users size={18} /> Project Team
+            </h2>
+            {isAdmin && (
+              <button
+                onClick={handleOpenMemberModal}
+                className="bg-neutral-800 hover:bg-neutral-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 border border-neutral-700"
+              >
+                <Users size={14} /> Manage Team
+              </button>
+            )}
+          </div>
 
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex -space-x-2 overflow-hidden">
@@ -317,41 +387,24 @@ const ProjectDetails = () => {
                     title={`${mem.firstName} ${mem.lastName}`}
                     className="inline-block h-10 w-10 rounded-full ring-2 ring-neutral-900 bg-neutral-800 object-cover"
                   />
-                  {isAdmin && (
-                    <button
-                      onClick={() => handleRemoveMember(mem.clerkId)}
-                      className="absolute -top-1 -right-1 bg-red-500 hover:bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Remove from project"
-                    >
-                      ×
-                    </button>
-                  )}
                 </div>
               ))}
               {members.length === 0 && (
                 <span className="text-sm text-neutral-500">No members yet</span>
               )}
             </div>
-
-            {isAdmin && (
-              <form onSubmit={handleAddMember} className="flex gap-2 ml-auto">
-                <input
-                  type="email"
-                  placeholder="Add member by email..."
-                  value={newMemberEmail}
-                  onChange={(e) => setNewMemberEmail(e.target.value)}
-                  className="bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-sm text-white w-64 focus:outline-none focus:border-blue-600"
-                />
-                <button
-                  type="submit"
-                  className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                >
-                  <UserPlus size={16} /> Add
-                </button>
-              </form>
-            )}
           </div>
         </div>
+
+        <ProjectMembersModal
+          isOpen={isMemberModalOpen}
+          onClose={() => setIsMemberModalOpen(false)}
+          projectId={id}
+          currentMembers={members}
+          orgMembers={orgMembers}
+          loadingOrgMembers={isFetchingOrgMembers}
+          onMemberToggled={handleMemberToggle}
+        />
 
         {/* Tabs */}
         <div className="border-b border-neutral-800 flex gap-6 text-sm">
@@ -455,9 +508,19 @@ const ProjectDetails = () => {
                               : "bg-green-400"
                           }`}
                         ></div>
-                        <span className="font-medium text-white">
+                        <span className="font-medium text-white truncate">
                           {task.title}
                         </span>
+                        {/* Chat Indicator */}
+                         <div className="relative flex items-center justify-center w-6 h-6 shrink-0 group/chat">
+                            <MessageSquare 
+                               size={14} 
+                               className={`transition-colors ${task.hasUnread ? "text-white" : "text-neutral-600 group-hover/chat:text-neutral-400"}`} 
+                            />
+                            {task.hasUnread && (
+                               <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full border border-[#0b141a]"></span>
+                            )}
+                         </div>
                       </div>
 
                       {/* Type Badge */}
@@ -537,7 +600,10 @@ const ProjectDetails = () => {
           onClose={() => setIsTaskModalOpen(false)}
           projectId={id}
           projectMembers={members}
-          onTaskCreated={() => {}}
+          onTaskCreated={() => {
+             // Invalidate to be safe, though socket also updates
+             queryClient.invalidateQueries(["project-tasks", id]);
+          }}
         />
       </div>
     </PageTransition>

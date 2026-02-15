@@ -13,7 +13,8 @@ import {
   approveTask,
   disapproveTask,
   addTaskActivity,
-  getTaskActivities
+  getTaskActivities,
+  markTaskRead
 } from "../controllers/taskController.js";
 import { requireAuth, requireRole } from "../middleware/authMiddleware.js";
 
@@ -21,11 +22,13 @@ const router = express.Router();
 
 router.get("/project/:projectId", requireAuth, getTasks);
 
+router.post("/:id/read", requireAuth, markTaskRead);
+
 
 router.post(
   "/",
   requireAuth,
-  requireRole(["admin", "org:admin"]), 
+  requireRole(["admin", "org:admin"]),
   validate(createTaskSchema),
   createTask
 );

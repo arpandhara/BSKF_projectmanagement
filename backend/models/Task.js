@@ -37,7 +37,9 @@ const taskSchema = new mongoose.Schema({
     userName: { type: String },
     text: { type: String },
     createdAt: { type: Date, default: Date.now }
-  }]
+  }],
+
+  lastActivityAt: { type: Date, default: Date.now }
 }, {
   timestamps: true
 });

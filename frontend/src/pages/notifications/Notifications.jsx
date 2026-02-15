@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useAuth, useUser } from "@clerk/clerk-react";
 import { Check, X, UserMinus, Trash2, Bell, Info } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "../../services/api";
 import { getSocket } from "../../services/socket";
 import PageTransition from "../../components/common/PageTransition";
@@ -8,69 +9,100 @@ import PageTransition from "../../components/common/PageTransition";
 const Notifications = () => {
   const { orgId, orgRole } = useAuth();
   const { user } = useUser();
+  const queryClient = useQueryClient();
 
-  const [adminRequests, setAdminRequests] = useState([]);
-  const [userNotifications, setUserNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // 1. Fetch User Notifications
+  const { data: userNotifications = [], isLoading: loadingNotes } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: async () => {
+      const res = await api.get("/notifications");
+      return res.data || [];
+    },
+    staleTime: 1000 * 60, // 1 min stale
+  });
 
-  const fetchData = async () => {
-    setLoading(true);
+  // 2. Fetch Admin Actions (Only if Admin)
+  const { data: adminRequests = [], isLoading: loadingAdmin } = useQuery({
+    queryKey: ["admin-requests", orgId],
+    queryFn: async () => {
+      const res = await api.get("/admin-actions/pending", { params: { orgId } });
+      return res.data || [];
+    },
+    enabled: orgRole === "org:admin" && !!orgId,
+  });
 
-    // 1. Admin Actions
-    if (orgRole === "org:admin") {
-      try {
-        const adminRes = await api.get("/admin-actions/pending", {
-          params: { orgId },
-        });
-        setAdminRequests(adminRes.data || []);
-      } catch (error) {
-        console.error("Failed to fetch admin notifications", error);
-      }
-    }
+  // Mark Read Mutation
+  const markReadMutation = useMutation({
+     mutationFn: async () => {
+       await api.put("/notifications/mark-read");
+     },
+     onSuccess: () => {
+       window.dispatchEvent(new Event("notificationUpdate"));
+     }
+  });
 
-    // 2. User Notifications
-    try {
-      const userRes = await api.get("/notifications");
-      setUserNotifications(userRes.data || []);
-    } catch (error) {
-      console.error("Failed to fetch user notifications", error);
-    }
-
-    setLoading(false);
-  };
-
+  // Mark read on mount
   useEffect(() => {
-    const init = async () => {
-      if (orgId) await fetchData();
+    markReadMutation.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-      try {
-        await api.put("/notifications/mark-read");
-        window.dispatchEvent(new Event("notificationUpdate"));
-      } catch {
-        console.error("Failed to mark notifications as read");
-      }
-    };
-    init();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgId, orgRole]);
+  // Dismiss Mutation
+  const dismissMutation = useMutation({
+    mutationFn: async (noteId) => {
+      await api.delete(`/notifications/${noteId}`);
+    },
+    onMutate: async (noteId) => {
+      await queryClient.cancelQueries(["notifications"]);
+      const previousNotes = queryClient.getQueryData(["notifications"]);
+      
+      queryClient.setQueryData(["notifications"], (old) => 
+        old ? old.filter(n => n._id !== noteId) : []
+      );
+      
+      return { previousNotes };
+    },
+    onError: (err, noteId, context) => {
+      queryClient.setQueryData(["notifications"], context.previousNotes);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries(["notifications"]);
+      window.dispatchEvent(new Event("notificationUpdate"));
+    }
+  });
 
-  // 3. ⚡ SOCKET: Listen for new notifications live
+  // Clear All Mutation
+  const clearAllMutation = useMutation({
+     mutationFn: async () => {
+        await api.delete("/notifications");
+     },
+     onMutate: async () => {
+       await queryClient.cancelQueries(["notifications"]);
+       const previousNotes = queryClient.getQueryData(["notifications"]);
+       queryClient.setQueryData(["notifications"], []);
+       return { previousNotes };
+     },
+     onError: (err, vars, context) => {
+        queryClient.setQueryData(["notifications"], context.previousNotes);
+     },
+     onSettled: () => {
+       queryClient.invalidateQueries(["notifications"]);
+       window.dispatchEvent(new Event("notificationUpdate"));
+     }
+  });
+
+  // Socket Listener
   useEffect(() => {
     const socket = getSocket();
     if (!socket) return;
 
     const handleNewNotification = (newNote) => {
-      // Prepend to list instantly
-      setUserNotifications((prev) => [newNote, ...prev]);
-
-      // Auto-mark as read since we are looking at the page?
-      // Optional, but might be nice. For now just show it.
+      queryClient.setQueryData(["notifications"], (old) => [newNote, ...(old || [])]);
     };
 
     socket.on("notification:new", handleNewNotification);
-
     return () => socket.off("notification:new", handleNewNotification);
-  }, []);
+  }, [queryClient]);
 
   // Handle Task Invite Response
   const handleInviteResponse = async (noteId, action) => {
@@ -79,7 +111,8 @@ const Notifications = () => {
         notificationId: noteId,
         action: action, // 'ACCEPT' or 'DECLINE'
       });
-      setUserNotifications((prev) => prev.filter((n) => n._id !== noteId));
+      // Update cache manually to remove note
+      queryClient.setQueryData(["notifications"], (old) => old.filter(n => n._id !== noteId));
       window.dispatchEvent(new Event("notificationUpdate"));
       window.dispatchEvent(new Event("taskUpdate"));
     } catch {
@@ -104,7 +137,7 @@ const Notifications = () => {
       if (req.type === "DELETE_ORG") {
         window.location.assign("/");
       } else {
-        fetchData();
+        queryClient.invalidateQueries(["admin-requests", orgId]);
         window.dispatchEvent(new Event("notificationUpdate"));
       }
     } catch (error) {
@@ -117,22 +150,18 @@ const Notifications = () => {
     try {
       await api.post(`/admin-actions/reject/${req._id}`);
       alert("Request denied and removed.");
-      fetchData();
+      queryClient.invalidateQueries(["admin-requests", orgId]);
       window.dispatchEvent(new Event("notificationUpdate"));
     } catch (error) {
       alert(error.response?.data?.message || "Failed to deny.");
     }
   };
 
-  const handleDismiss = async (noteId) => {
-    try {
-      await api.delete(`/notifications/${noteId}`);
-      setUserNotifications((prev) => prev.filter((n) => n._id !== noteId));
-      window.dispatchEvent(new Event("notificationUpdate"));
-    } catch (error) {
-      console.error("Failed to dismiss", error);
-    }
+  const handleDismiss = (noteId) => {
+    dismissMutation.mutate(noteId);
   };
+
+  const loading = loadingNotes || (orgRole === "org:admin" && loadingAdmin);
 
   if (loading)
     return <div className="p-8 text-neutral-400">Loading notifications...</div>;
@@ -153,15 +182,8 @@ const Notifications = () => {
             </h2>
             {userNotifications.length > 0 && (
               <button
-                onClick={async () => {
-                  if (!window.confirm("Clear all notifications?")) return;
-                  try {
-                    await api.delete("/notifications");
-                    setUserNotifications([]);
-                    window.dispatchEvent(new Event("notificationUpdate"));
-                  } catch (error) {
-                    console.error("Failed to clear", error);
-                  }
+                onClick={() => {
+                  clearAllMutation.mutate();
                 }}
                 className="text-xs text-neutral-400 hover:text-red-400 transition-colors flex items-center gap-1"
               >

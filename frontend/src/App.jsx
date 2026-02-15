@@ -27,6 +27,7 @@ const MemberDetails = lazy(() => import("./pages/team/MemberDetails"));
 const CreateOrganizationPage = lazy(() => import("./pages/organization/CreateOrganizationPage"));
 const Notifications = lazy(() => import("./pages/notifications/Notifications"));
 const TaskDetails = lazy(() => import("./pages/tasks/TaskDetails"));
+const TaskChatPage = lazy(() => import("./pages/chat/TaskChatPage"));
 const ProjectSettings = lazy(() => import("./pages/projects/ProjectSettings"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
@@ -94,6 +95,7 @@ const App = () => {
               />
               <Route path="notifications" element={<Notifications />} />
               <Route path="tasks/:taskId" element={<TaskDetails />} />
+              <Route path="tasks/:taskId/chat" element={<TaskChatPage />} />
               <Route path="/projects/:id/settings" element={<ProjectSettings />} />
             </Route>
 

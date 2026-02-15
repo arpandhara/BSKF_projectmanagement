@@ -378,6 +378,31 @@ const createProjectEvent = async (req, res) => {
       createdBy: req.auth.userId,
     });
 
+    const project = await Project.findById(id);
+
+    // Notify Project Members
+    if (project && project.members.length > 0) {
+      const notes = project.members
+        .filter(memberId => memberId !== req.auth.userId)
+        .map(memberId => ({
+          userId: memberId,
+          message: `New meeting "${title}" scheduled for project "${project.title}"`,
+          type: "INFO", // Or specific EVENT type if you want
+          projectId: id,
+          metadata: { eventId: event._id }
+        }));
+
+      if (notes.length > 0) {
+        const savedNotes = await Notification.insertMany(notes);
+        const io = req.app.get("io");
+        if (io) {
+          savedNotes.forEach(note => {
+            io.to(`user_${note.userId}`).emit("notification:new", note);
+          });
+        }
+      }
+    }
+
     const io = req.app.get("io");
     if (io) {
       io.to(`project_${id}`).emit("event:created", event);
@@ -405,6 +430,33 @@ const getProjectEvents = async (req, res) => {
   }
 };
 
+// 👇 NEW: Delete Event (Admin Only)
+const deleteProjectEvent = async (req, res) => {
+  try {
+    const { id, eventId } = req.params;
+
+    const event = await Event.findById(eventId);
+    if (!event) return res.status(404).json({ message: "Event not found" });
+
+    // Ensure event belongs to project
+    if (event.projectId.toString() !== id) {
+      return res.status(400).json({ message: "Event does not belong to this project" });
+    }
+
+    await event.deleteOne();
+
+    const io = req.app.get("io");
+    if (io) {
+      io.to(`project_${id}`).emit("event:deleted", eventId);
+    }
+
+    res.json({ message: "Event deleted successfully" });
+  } catch (error) {
+    console.error("Delete Event Error:", error);
+    res.status(500).json({ message: "Failed to delete event" });
+  }
+};
+
 export {
   getProjects,
   getProjectById,
@@ -416,4 +468,5 @@ export {
   removeProjectMember,
   createProjectEvent,
   getProjectEvents,
+  deleteProjectEvent
 };

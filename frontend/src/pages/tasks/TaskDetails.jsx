@@ -17,9 +17,10 @@ import {
   Link as LinkIcon,
   Github,
   Image as ImageIcon,
-  VenetianMask, // 👈 Added VenetianMask for the funny UI
+  VenetianMask, 
 } from "lucide-react";
 import { useUser, useAuth } from "@clerk/clerk-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "../../services/api";
 import { getSocket } from "../../services/socket";
 import { uploadFile } from "../../services/supabase";
@@ -30,21 +31,15 @@ const TaskDetails = () => {
   const navigate = useNavigate();
   const { user } = useUser();
   const { orgRole } = useAuth();
+  const queryClient = useQueryClient();
 
-  const [task, setTask] = useState(null);
-  const [activities, setActivities] = useState([]);
-  const [projectMembers, setProjectMembers] = useState([]);
-  const [memberStatuses, setMemberStatuses] = useState({}); // Track availability
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null); // 👈 Tracks access errors
-
+  // State
+  const [memberStatuses, setMemberStatuses] = useState({});
+  
   // Approval UI State
-  const [approvalComment, setApprovalComment] = useState("");
   const [showApprovalBox, setShowApprovalBox] = useState(false);
   const [actionType, setActionType] = useState(null);
 
-  // Inputs
-  const [commentText, setCommentText] = useState("");
 
   // Attachment UI State
   const [attachmentMode, setAttachmentMode] = useState("LINK");
@@ -58,36 +53,90 @@ const TaskDetails = () => {
   const assigneeRef = useRef(null);
   const inviteRef = useRef(null);
 
+  // --- QUERIES ---
+
+  // 1. Fetch Task
+  const { 
+    data: task, 
+    isLoading: loadingTask, 
+    error: taskError 
+  } = useQuery({
+    queryKey: ["task", taskId],
+    queryFn: async () => {
+      const res = await api.get(`/tasks/${taskId}`);
+      return res.data;
+    },
+    staleTime: 1000 * 60 * 2, // 2 minutes
+    retry: 1,
+    initialData: () => {
+       // Optional: Try to find this task in the project-tasks cache if not exists
+       // This is a backup if seeding didn't happen for some reason
+       const queryCache = queryClient.getQueryCache();
+       const projectTasksQueries = queryCache.findAll(["project-tasks"]);
+       for (const query of projectTasksQueries) {
+          const task = query.state.data?.find(t => t._id === taskId);
+          if (task) return task;
+       }
+       return undefined;
+    }
+  });
+
+
+  // 3. Fetch Project Members (Dependent on Task)
+  const projectId = task?.projectId?._id || task?.projectId;
+  const { data: projectMembers = [] } = useQuery({
+    queryKey: ["project-members", projectId],
+    queryFn: async () => {
+      const res = await api.get(`/projects/${projectId}/members`);
+      return res.data;
+    },
+    enabled: !!projectId,
+    staleTime: 1000 * 60 * 10,
+  });
+
+  // --- MUTATIONS ---
+
+  // Update Task Mutation
+  const updateTaskMutation = useMutation({
+    mutationFn: async (updates) => {
+      await api.put(`/tasks/${taskId}`, updates);
+    },
+    onMutate: async (updates) => {
+      await queryClient.cancelQueries(["task", taskId]);
+      const previousTask = queryClient.getQueryData(["task", taskId]);
+      
+      queryClient.setQueryData(["task", taskId], (old) => ({ ...old, ...updates }));
+      
+      return { previousTask };
+    },
+    onError: (err, newTodo, context) => {
+      queryClient.setQueryData(["task", taskId], context.previousTask);
+      toast.error("Failed to update task");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries(["task", taskId]);
+    },
+  });
+
+
+  // Delete Task Mutation
+  const deleteTaskMutation = useMutation({
+    mutationFn: async () => {
+      await api.delete(`/tasks/${taskId}`);
+    },
+    onSuccess: () => {
+      toast.success("Task deleted");
+      navigate(-1);
+    },
+    onError: () => {
+      toast.error("Failed to delete task");
+    }
+  });
+
   const isAdmin = orgRole === "org:admin";
   const isAssignee = task?.assignees?.includes(user?.id);
 
-  // 1. Fetch Data
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [taskRes, actRes] = await Promise.all([
-          api.get(`/tasks/${taskId}`),
-          api.get(`/tasks/${taskId}/activity`),
-        ]);
-        setTask(taskRes.data);
-        setActivities(actRes.data);
-
-        if (taskRes.data.projectId) {
-          const pid = taskRes.data.projectId._id || taskRes.data.projectId;
-          const memRes = await api.get(`/projects/${pid}/members`);
-          setProjectMembers(memRes.data);
-        }
-      } catch (err) {
-        console.error(err);
-        setError(err.response?.data?.message || "Failed to load task");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [taskId]);
-
-  // Fetch member availability statuses
+  // Fetch member availability statuses (Keep this local effect for now, could be a query)
   useEffect(() => {
     const fetchStatuses = async () => {
       if (!projectMembers.length) return;
@@ -110,44 +159,33 @@ const TaskDetails = () => {
     }
   }, [projectMembers]);
 
-  // 2. Socket Listeners
+  // Socket Listeners
   useEffect(() => {
     const socket = getSocket();
-    if (!socket || !task) return;
+    if (!socket || !projectId) return;
 
-    const projectId =
-      typeof task.projectId === "string" ? task.projectId : task.projectId._id;
     socket.emit("join_project", `project_${projectId}`);
 
     // Join organization room if available
-    if (task.projectId?.orgId) {
-      socket.emit("join_org", task.projectId.orgId);
+    const orgId = typeof task?.projectId === "object" ? task.projectId.orgId : null; // Access nested if populated
+    if (orgId) {
+      socket.emit("join_org", orgId);
     }
 
     const handleTaskUpdated = (updatedTask) => {
       if (updatedTask._id === taskId) {
-        setTask((prev) => ({ ...updatedTask, projectId: prev.projectId }));
+        queryClient.setQueryData(["task", taskId], (old) => ({ ...old, ...updatedTask }));
       }
     };
 
-    const handleNewActivity = (newActivity) => {
-      if (newActivity.taskId === taskId) {
-        setActivities((prev) => [newActivity, ...prev]);
-      }
-    };
-
-    // 🆕 NEW: Handle team updates (when members are removed from org)
-    const handleTeamUpdate = async () => {
-      console.log("👥 Team update received in TaskDetails, refreshing members...");
-      try {
-        if (task.projectId) {
-          const pid = task.projectId._id || task.projectId;
-          const memRes = await api.get(`/projects/${pid}/members`);
-          setProjectMembers(memRes.data);
+    const handleNewActivity = (activity) => {
+        if (activity.taskId === taskId && activity.userId !== user.id) {
+           queryClient.setQueryData(["task", taskId], (old) => ({ ...old, hasUnread: true }));
         }
-      } catch (error) {
-        console.error("Failed to refresh members:", error);
-      }
+    };
+
+    const handleTeamUpdate = () => {
+       queryClient.invalidateQueries(["project-members", projectId]);
     };
 
     socket.on("task:updated", handleTaskUpdated);
@@ -159,94 +197,43 @@ const TaskDetails = () => {
       socket.off("task:activity", handleNewActivity);
       socket.off("team:update", handleTeamUpdate);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [taskId, task?.projectId]);
+  }, [taskId, projectId, queryClient, task]);
 
-  // 3. Actions
-  const handleUpdate = async (field, value) => {
-    try {
-      await api.put(`/tasks/${taskId}`, { [field]: value });
-    } catch {
-      alert("Failed to update task");
-    }
+  // Actions
+  const handleUpdate = (field, value) => {
+    updateTaskMutation.mutate({ [field]: value });
   };
 
-  const handleDeleteTask = async () => {
+  const handleDeleteTask = () => {
     if (!window.confirm("Are you sure you want to delete this task?")) return;
-    try {
-      await api.delete(`/tasks/${taskId}`);
-      navigate(-1);
-    } catch {
-      alert("Failed to delete task");
-    }
+    deleteTaskMutation.mutate();
   };
 
-  // --- Comments ---
-  const handlePostComment = async (e) => {
-    e.preventDefault();
-    if (!commentText.trim()) return;
-
-    try {
-      await api.post(`/tasks/${taskId}/activity`, {
-        type: "COMMENT",
-        content: commentText,
-      });
-      setCommentText("");
-    } catch {
-      alert("Failed to post comment");
-    }
-  };
 
   // --- Attachments (Links) ---
-  const handleAddLink = async () => {
+  const handleAddLink = () => {
     if (!newLink.name || !newLink.url) return;
     const updatedAttachments = [...(task.attachments || []), newLink];
-    await handleUpdate("attachments", updatedAttachments);
+    handleUpdate("attachments", updatedAttachments);
     setNewLink({ name: "", url: "", type: "DOC" });
   };
 
-  const removeLink = async (index) => {
+  const removeLink = (index) => {
     if (!window.confirm("Remove this attachment?")) return;
     const updatedAttachments = task.attachments.filter((_, i) => i !== index);
-    await handleUpdate("attachments", updatedAttachments);
+    handleUpdate("attachments", updatedAttachments);
   };
 
-  // --- Attachments (File Upload) ---
-  const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
 
-    setIsUploading(true);
-    try {
-      const { url, error } = await uploadFile(file);
-      if (error) throw error;
 
-      await api.post(`/tasks/${taskId}/activity`, {
-        type: "UPLOAD",
-        content: "Uploaded a file",
-        metadata: {
-          fileName: file.name,
-          fileUrl: url,
-          fileType: file.type.startsWith("image/") ? "IMAGE" : "DOC",
-        },
-      });
-    } catch (error) {
-      console.error("Upload failed:", error);
-      alert("Failed to upload file.");
-    } finally {
-      setIsUploading(false);
-      if (attachmentFileRef.current) attachmentFileRef.current.value = "";
-    }
-  };
-
-  const handleToggleAssignee = async (memberId) => {
+  const handleToggleAssignee = (memberId) => {
     let newAssignees = [...(task.assignees || [])];
     if (newAssignees.includes(memberId)) {
       newAssignees = newAssignees.filter((id) => id !== memberId);
     } else {
       newAssignees.push(memberId);
     }
-    await handleUpdate("assignees", newAssignees);
+    handleUpdate("assignees", newAssignees);
   };
 
   const handleInvite = async (memberId) => {
@@ -259,31 +246,54 @@ const TaskDetails = () => {
     }
   };
 
-  const handleApprovalAction = async () => {
-    if (!approvalComment && actionType === "REJECT") {
-      toast.error("Please add a reason for rejection.");
-      return;
-    }
-
-    const updatedTask = {
-      ...task,
-      isApproved: actionType === "APPROVE",
-      status: actionType === "APPROVE" ? "Done" : "In Progress",
-    };
-    setTask(updatedTask);
-    setShowApprovalBox(false);
-    setApprovalComment("");
-
-    try {
+  // Approval Mutation
+  const approvalMutation = useMutation({
+    mutationFn: async ({ actionType, comment }) => {
       const endpoint = actionType === "APPROVE" ? "approve" : "disapprove";
-      await api.put(`/tasks/${taskId}/${endpoint}`, {
-        comment: approvalComment,
+      const res = await api.put(`/tasks/${taskId}/${endpoint}`, {
+        comment,
         adminName: user.fullName || user.firstName,
       });
-    } catch (error) {
-      console.error(error);
-      alert("Action failed. Please refresh.");
-    }
+      return res.data;
+    },
+    onMutate: async ({ actionType, comment }) => {
+      await queryClient.cancelQueries(["task", taskId]);
+      await queryClient.cancelQueries(["task-activities", taskId]);
+
+      const previousTask = queryClient.getQueryData(["task", taskId]);
+      const previousActivities = queryClient.getQueryData(["task-activities", taskId]);
+      
+      const isApproved = actionType === "APPROVE";
+      const status = isApproved ? "Done" : "In Progress";
+      
+      // Update Task
+      queryClient.setQueryData(["task", taskId], (old) => ({
+         ...old,
+         isApproved,
+         status
+      }));
+
+      return { previousTask, previousActivities };
+    },
+    onError: (err, vars, context) => {
+      queryClient.setQueryData(["task", taskId], context.previousTask);
+      queryClient.setQueryData(["task-activities", taskId], context.previousActivities);
+      toast.error("Action failed");
+    },
+    onSuccess: (data) => {
+       if (data.task) {
+         queryClient.setQueryData(["task", taskId], (old) => ({ ...old, ...data.task }));
+       }
+    },
+    onSettled: () => {
+      // still invalidate task status to be safe
+      queryClient.invalidateQueries(["task", taskId]);
+    },
+  });
+
+  const handleApprovalAction = () => {
+    approvalMutation.mutate({ actionType, comment: "" });
+    setShowApprovalBox(false);
   };
 
   const getDaysLeft = () => {
@@ -296,92 +306,13 @@ const TaskDetails = () => {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  // Render Activity Log Item
-  const renderActivityItem = (act) => (
-    <div
-      key={act._id}
-      className="flex gap-3 mb-4 animate-in fade-in slide-in-from-bottom-2"
-    >
-      <img
-        src={act.userPhoto}
-        className="w-8 h-8 rounded-full bg-neutral-800 object-cover mt-1"
-        alt=""
-      />
-      <div className="flex-1">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-bold text-white">{act.userName}</span>
-          <span className="text-[10px] text-neutral-500">
-            {new Date(act.createdAt).toLocaleString()}
-          </span>
-        </div>
 
-        {act.type === "COMMENT" && (
-          <p className="text-sm text-neutral-300 bg-neutral-800/50 p-2 rounded-lg mt-1 border border-neutral-800">
-            {act.content}
-          </p>
-        )}
+  if (loadingTask) return <div className="p-8 text-neutral-400">Loading...</div>;
 
-        {act.type === "UPLOAD" && (
-          <div className="mt-2">
-            {act.metadata?.fileType === "IMAGE" ? (
-              <a
-                href={act.metadata.fileUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="block w-fit"
-              >
-                <img
-                  src={act.metadata.fileUrl}
-                  alt={act.metadata.fileName}
-                  className="max-w-[200px] rounded-lg border border-neutral-700 hover:opacity-90 transition-opacity"
-                />
-              </a>
-            ) : (
-              <a
-                href={act.metadata?.fileUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-2 bg-blue-900/20 text-blue-400 p-2 rounded-lg border border-blue-900/50 hover:bg-blue-900/30 transition-colors w-fit"
-              >
-                <FileText size={16} />
-                <span className="text-sm underline">
-                  {act.metadata?.fileName || "Attachment"}
-                </span>
-              </a>
-            )}
-          </div>
-        )}
-
-        {act.type === "ATTACHMENT_REMOVED" && (
-          <div className="mt-1 p-2 bg-neutral-800/50 border border-neutral-800 rounded-lg text-sm text-neutral-500 italic flex items-center gap-2">
-            <Trash2 size={14} /> Attachment removed
-          </div>
-        )}
-
-        {(act.type === "STATUS_CHANGE" || act.type === "PRIORITY_CHANGE") && (
-          <p className="text-xs text-neutral-500 italic mt-0.5">
-            {act.content}
-          </p>
-        )}
-
-        {act.type === "APPROVAL" && (
-          <div className="mt-1 p-2 bg-green-900/20 border border-green-900/50 rounded-lg text-sm text-green-400">
-            ✅ Task Approved: {act.content}
-          </div>
-        )}
-        {act.type === "REJECTION" && (
-          <div className="mt-1 p-2 bg-red-900/20 border border-red-900/50 rounded-lg text-sm text-red-400">
-            ❌ Task Returned: {act.content}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
-  if (loading) return <div className="p-8 text-neutral-400">Loading...</div>;
+  const errorMessage = taskError?.response?.data?.message || taskError?.message;
 
   // 👇 HUMOROUS ACCESS DENIED SCREEN
-  if (error && (error.includes("Access Denied") || error.includes("403"))) {
+  if (errorMessage && (errorMessage.includes("Access Denied") || taskError?.response?.status === 403)) {
     return (
       <div className="h-full flex flex-col items-center justify-center p-8 text-center animate-in fade-in zoom-in duration-300">
         <div className="bg-red-500/10 p-6 rounded-full mb-6 border border-red-500/20 shadow-[0_0_30px_rgba(239,68,68,0.2)]">
@@ -417,20 +348,35 @@ const TaskDetails = () => {
     <PageTransition>
       <div className="space-y-6 pb-10 h-full flex flex-col">
         <div className="flex justify-between items-center shrink-0">
-          <button
-            onClick={() => navigate(-1)}
-            className="text-neutral-400 hover:text-white flex items-center gap-2"
-          >
-            <ArrowLeft size={18} /> Back
-          </button>
-          {isAdmin && (
-            <button
-              onClick={handleDeleteTask}
-              className="flex items-center gap-2 text-red-500 hover:text-red-400 px-3 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors text-sm font-medium"
-            >
-              <Trash2 size={16} /> Delete Task
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+             <button
+                onClick={() => navigate(-1)}
+                className="text-neutral-400 hover:text-white flex items-center gap-2"
+             >
+                <ArrowLeft size={18} /> Back
+             </button>
+          </div>
+        
+          <div className="flex items-center gap-3">
+             <button
+                onClick={() => navigate(`/tasks/${taskId}/chat`)}
+                className="flex items-center gap-2 bg-[#25D366] hover:bg-[#128C7E] text-white px-3 py-1.5 rounded-lg transition-colors text-sm font-medium relative"
+             >
+                <MessageSquare size={16} /> Open Chat
+                {task.hasUnread && (
+                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-[#0b141a]"></span>
+                )}
+             </button>
+
+             {isAdmin && (
+                <button
+                onClick={handleDeleteTask}
+                className="flex items-center gap-2 text-red-500 hover:text-red-400 px-3 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors text-sm font-medium"
+                >
+                <Trash2 size={16} /> Delete Task
+                </button>
+             )}
+          </div>
         </div>
 
         {task.isApproved && (
@@ -630,7 +576,10 @@ const TaskDetails = () => {
                     type="text"
                     value={task.title}
                     onChange={(e) =>
-                      setTask({ ...task, title: e.target.value })
+                      queryClient.setQueryData(["task", taskId], (old) => ({
+                        ...old,
+                        title: e.target.value,
+                      }))
                     }
                     onBlur={(e) => handleUpdate("title", e.target.value)}
                     className="w-full bg-transparent text-2xl font-bold text-white focus:outline-none border-b border-neutral-800 focus:border-blue-600 transition-colors pb-2"
@@ -650,7 +599,10 @@ const TaskDetails = () => {
                   <textarea
                     value={task.description}
                     onChange={(e) =>
-                      setTask({ ...task, description: e.target.value })
+                      queryClient.setQueryData(["task", taskId], (old) => ({
+                        ...old,
+                        description: e.target.value,
+                      }))
                     }
                     onBlur={(e) => handleUpdate("description", e.target.value)}
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-3 text-neutral-300 focus:outline-none focus:border-blue-600 min-h-[100px] resize-y"
@@ -701,16 +653,9 @@ const TaskDetails = () => {
                   <div className="space-y-3 bg-neutral-950 p-4 rounded-lg border border-neutral-800 animate-in zoom-in-95 duration-200">
                     <p className="text-sm text-white font-medium">
                       {actionType === "APPROVE"
-                        ? "Approve & Schedule Deletion"
-                        : "Disapprove & Revert to In Progress"}
+                        ? "Approve & Schedule Deletion?"
+                        : "Disapprove & Revert to In Progress?"}
                     </p>
-                    <textarea
-                      value={approvalComment}
-                      onChange={(e) => setApprovalComment(e.target.value)}
-                      placeholder="Add a comment (optional)..."
-                      className="w-full bg-neutral-900 border border-neutral-800 rounded-lg p-3 text-sm text-white focus:border-blue-600 outline-none resize-none"
-                      rows={2}
-                    />
                     <div className="flex gap-2 justify-end">
                       <button
                         onClick={() => setShowApprovalBox(false)}
@@ -885,52 +830,6 @@ const TaskDetails = () => {
               </div>
             </div>
 
-            {/* Activity Feed */}
-            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 sm:p-6 flex flex-col h-[400px] md:h-[500px]">
-              <h3 className="text-white font-bold mb-4 flex items-center gap-2 shrink-0">
-                <MessageSquare size={18} /> Activity & Comments
-              </h3>
-
-              <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar flex flex-col-reverse">
-                {activities.length > 0 ? (
-                  activities.map(renderActivityItem)
-                ) : (
-                  <div className="text-center text-neutral-600 py-10">
-                    No activity yet.
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-4 pt-4 border-t border-neutral-800 shrink-0">
-                <form
-                  onSubmit={handlePostComment}
-                  className="flex gap-3 items-end"
-                >
-                  <div className="flex-1 relative">
-                    <textarea
-                      value={commentText}
-                      onChange={(e) => setCommentText(e.target.value)}
-                      placeholder="Write a comment..."
-                      className="w-full bg-neutral-950 border border-neutral-800 rounded-lg pl-3 pr-3 py-3 text-sm text-white focus:border-blue-600 outline-none resize-none"
-                      rows={1}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          handlePostComment(e);
-                        }
-                      }}
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={!commentText.trim()}
-                    className="bg-blue-600 hover:bg-blue-500 text-white p-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <Send size={18} />
-                  </button>
-                </form>
-              </div>
-            </div>
           </div>
         </div>
       </div>

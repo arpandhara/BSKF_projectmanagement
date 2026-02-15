@@ -4,6 +4,7 @@ import User from "../models/User.js";
 // import nodemailer from "nodemailer"; // Removed in favor of Resend
 import Project from "../models/Project.js";
 import Activity from "../models/Activity.js";
+import TaskReadStatus from "../models/TaskReadStatus.js";
 import { deleteFileFromUrl } from "../utils/supabase.js";
 import redis from "../config/redisClient.js"; // 👈 Import Redis
 
@@ -36,6 +37,9 @@ const getTasks = async (req, res) => {
     // 2. Try Cache
     const cachedTasks = await redis.get(cacheKey);
     if (cachedTasks) {
+      // Optimization: If we have cached tasks, we might still want to refresh "read status"
+      // but for now, let's just return them. The read status might be stale in cache 
+      // until next update/invalidation. 
       return res.json(JSON.parse(cachedTasks));
     }
 
@@ -47,6 +51,26 @@ const getTasks = async (req, res) => {
     }
 
     const tasks = await Task.find(query).sort({ createdAt: -1 }).lean();
+
+    // ⚡ ENHANCEMENT: Add `hasUnread` status for each task
+    if (userId) {
+      const taskIds = tasks.map(t => t._id);
+      const readStatuses = await TaskReadStatus.find({
+        userId,
+        taskId: { $in: taskIds }
+      });
+
+      const readMap = {};
+      readStatuses.forEach(rs => {
+        readMap[rs.taskId.toString()] = new Date(rs.lastReadAt).getTime();
+      });
+
+      tasks.forEach(task => {
+        const lastRead = readMap[task._id.toString()] || 0;
+        const lastActivity = task.lastActivityAt ? new Date(task.lastActivityAt).getTime() : 0;
+        task.hasUnread = lastActivity > lastRead;
+      });
+    }
 
     // 3. Set Cache (60s TTL)
     await redis.setex(cacheKey, 60, JSON.stringify(tasks));
@@ -173,11 +197,15 @@ const deleteTask = async (req, res) => {
     // 3. DELETE ACTIVITY LOGS
     await Activity.deleteMany({ taskId: task._id });
 
-    // 4. DELETE THE TASK
+    // 4. DELETE READ STATUSES
+    await TaskReadStatus.deleteMany({ taskId: task._id });
+
+    // 5. DELETE THE TASK
     await task.deleteOne();
 
     // Invalidate Cache
     await redis.del(`tasks:project:${projectId}:all`);
+    await redis.del(`task:${req.params.id}`); // Invalidate specific task cache
 
     // 5. SOCKET EVENTS
     const io = req.app.get("io");
@@ -202,6 +230,30 @@ const getUserTasks = async (req, res) => {
       "projectId",
       "title"
     ).lean();
+
+    // ⚡ ENHANCEMENT: Add `hasUnread` status for each task
+    // (Assuming the requester is the user themselves, or we check auth.userId)
+    const authUserId = req.auth.userId;
+
+    if (authUserId) {
+      const taskIds = tasks.map(t => t._id);
+      const readStatuses = await TaskReadStatus.find({
+        userId: authUserId,
+        taskId: { $in: taskIds }
+      });
+
+      const readMap = {};
+      readStatuses.forEach(rs => {
+        readMap[rs.taskId.toString()] = new Date(rs.lastReadAt).getTime();
+      });
+
+      tasks.forEach(task => {
+        const lastRead = readMap[task._id.toString()] || 0;
+        const lastActivity = task.lastActivityAt ? new Date(task.lastActivityAt).getTime() : 0;
+        task.hasUnread = lastActivity > lastRead;
+      });
+    }
+
     res.json(tasks);
   } catch (error) {
     console.error(error);
@@ -218,11 +270,36 @@ const getTaskById = async (req, res) => {
       req.auth?.sessionClaims?.o?.rol === "admin" ||
       req.auth?.orgRole === "org:admin";
 
-    const task = await Task.findById(id).populate("projectId", "title ownerId").lean();
+    // 1. Try Cache
+    const cacheKey = `task:${id}`;
+    let taskData = await redis.get(cacheKey);
 
-    if (!task) return res.status(404).json({ message: "Task not found" });
+    if (taskData) {
+      taskData = JSON.parse(taskData);
+    } else {
+      // 2. Fetch if not in cache
+      const task = await Task.findById(id).populate("projectId", "title ownerId").lean();
+      if (!task) return res.status(404).json({ message: "Task not found" });
 
-    const isAssignee = task.assignees.includes(userId);
+      // Parsing Assignee & Owner Details for Tagging
+      const assigneeDetails = await User.find({
+        clerkId: { $in: task.assignees }
+      }).select("firstName lastName photo clerkId email");
+
+      let ownerDetails = null;
+      if (task.projectId?.ownerId) {
+        ownerDetails = await User.findOne({
+          clerkId: task.projectId.ownerId
+        }).select("firstName lastName photo clerkId email");
+      }
+
+      taskData = { ...task, assigneeDetails, ownerDetails };
+
+      // 3. Set Cache (5 mins)
+      await redis.setex(cacheKey, 300, JSON.stringify(taskData));
+    }
+
+    const isAssignee = taskData.assignees.includes(userId);
 
     if (!isOrgAdmin && !isAssignee) {
       return res
@@ -230,7 +307,17 @@ const getTaskById = async (req, res) => {
         .json({ message: "Access Denied. You are not assigned to this task." });
     }
 
-    res.json(task);
+    // Check for unread messages (Real-time, largely depends on user)
+    let hasUnread = false;
+    if (userId) {
+      const readStatus = await TaskReadStatus.findOne({ userId, taskId: id });
+      const lastRead = readStatus ? new Date(readStatus.lastReadAt).getTime() : 0;
+      // Ensure we parse dates correctly from JSON cache
+      const lastActivity = taskData.lastActivityAt ? new Date(taskData.lastActivityAt).getTime() : 0;
+      hasUnread = lastActivity > lastRead;
+    }
+
+    res.json({ ...taskData, hasUnread });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server Error" });
@@ -303,6 +390,7 @@ const updateTask = async (req, res) => {
 
     // Invalidate Cache
     await redis.del(`tasks:project:${task.projectId}:all`);
+    await redis.del(`task:${task._id}`);
 
     const io = req.app.get("io");
 
@@ -470,22 +558,34 @@ const approveTask = async (req, res) => {
     task.isApproved = true;
     task.approvedAt = new Date();
 
-    // Add Approval Comment
-    task.comments.push({
-      userId: req.auth.userId,
-      userName: adminName || "Admin",
-      text: comment || "Task Approved. Scheduled for deletion in 15 days.",
-      type: "APPROVAL"
-    });
-
     await task.save();
 
     // Invalidate Cache
     await redis.del(`tasks:project:${task.projectId}:all`);
+    await redis.del(`task:${task._id}`);
 
-    // Socket Update
+    // Create Activity Record
+    const userId = req.auth.userId;
+    const user = await User.findOne({ clerkId: userId });
+
+    // Create "Approval" Activity
+    const activity = await Activity.create({
+      taskId: new mongoose.Types.ObjectId(id),
+      userId,
+      userName: adminName || (user ? `${user.firstName} ${user.lastName}` : "Admin"),
+      userPhoto: user?.photo,
+      type: "COMMENT",
+      content: `APPROVED: ${comment || "Task Approved. Scheduled for deletion in 15 days."}`
+    });
+
+    console.log("✅ Approval Activity Created:", activity._id);
+
     const io = req.app.get("io");
-    if (io) io.to(`project_${task.projectId}`).emit("task:updated", task);
+
+    if (io) {
+      io.to(`project_${task.projectId}`).emit("task:updated", task);
+      io.to(`project_${task.projectId}`).emit("task:activity", activity);
+    }
 
     // Notify Assignees
     const notifications = task.assignees.map(uid => ({
@@ -502,8 +602,9 @@ const approveTask = async (req, res) => {
       }
     }
 
-    res.json(task);
+    res.json({ task, activity });
   } catch (error) {
+    console.error("Approve Error:", error);
     res.status(500).json({ message: "Failed to approve task" });
   }
 };
@@ -517,26 +618,36 @@ const disapproveTask = async (req, res) => {
     const task = await Task.findById(id);
     if (!task) return res.status(404).json({ message: "Task not found" });
 
-    //Unapprove and move back to In Progress
+    // Unapprove and move back to In Progress
     task.isApproved = false;
     task.approvedAt = null;
     task.status = "In Progress";
-
-    // Add Rejection Comment
-    task.comments.push({
-      userId: req.auth.userId,
-      userName: adminName || "Admin",
-      text: comment || "Task Disapproved.",
-      type: "REJECTION"
-    });
 
     await task.save();
 
     // Invalidate Cache
     await redis.del(`tasks:project:${task.projectId}:all`);
 
+    // Create Activity Record
+    const userId = req.auth.userId;
+    const user = await User.findOne({ clerkId: userId });
+
+    const activity = await Activity.create({
+      taskId: new mongoose.Types.ObjectId(id),
+      userId,
+      userName: adminName || (user ? `${user.firstName} ${user.lastName}` : "Admin"),
+      userPhoto: user?.photo,
+      type: "COMMENT",
+      content: `REJECTED: ${comment || "Task Disapproved."}`
+    });
+
+    console.log("✅ Disapproval Activity Created:", activity._id);
+
     const io = req.app.get("io");
-    if (io) io.to(`project_${task.projectId}`).emit("task:updated", task);
+    if (io) {
+      io.to(`project_${task.projectId}`).emit("task:updated", task);
+      io.to(`project_${task.projectId}`).emit("task:activity", activity);
+    }
 
     // Notify Assignees
     const notifications = task.assignees.map(uid => ({
@@ -553,8 +664,9 @@ const disapproveTask = async (req, res) => {
       }
     }
 
-    res.json(task);
+    res.json({ task, activity });
   } catch (error) {
+    console.error("Disapprove Error:", error);
     res.status(500).json({ message: "Failed to disapprove task" });
   }
 };
@@ -601,6 +713,9 @@ const deleteExpiredTasks = async (io) => {
       // Delete Activity Logs
       await Activity.deleteMany({ taskId: task._id });
 
+      // Delete Read Statuses
+      await TaskReadStatus.deleteMany({ taskId: task._id });
+
       // Notify Admin
       const project = await Project.findById(task.projectId);
       if (project && project.ownerId) {
@@ -621,6 +736,7 @@ const deleteExpiredTasks = async (io) => {
 
       // Invalidate Cache
       await redis.del(`tasks:project:${task.projectId}:all`);
+      await redis.del(`task:${task._id}`);
     }
 
     console.log(`🧹 Auto-deleted ${tasksToDelete.length} approved tasks and their files.`);
@@ -633,7 +749,7 @@ const deleteExpiredTasks = async (io) => {
 const addTaskActivity = async (req, res) => {
   try {
     const { id } = req.params; // Task ID
-    const { type, content, metadata } = req.body; // type: 'COMMENT' or 'UPLOAD'
+    const { type, content, metadata, mentions } = req.body; // type: 'COMMENT' or 'UPLOAD'
     const userId = req.auth.userId;
 
     const task = await Task.findById(id);
@@ -659,10 +775,45 @@ const addTaskActivity = async (req, res) => {
         url: metadata.fileUrl,
         type: metadata.fileType || 'IMAGE'
       });
-      await task.save();
-      // Invalidate Cache
-      await redis.del(`tasks:project:${task.projectId}:all`);
     }
+
+    // Handle Mentions
+    if (mentions && Array.isArray(mentions) && mentions.length > 0) {
+      const io = req.app.get("io");
+      const uniqueMentions = [...new Set(mentions)];
+
+      const mentionNotifications = uniqueMentions.map(mentionedUserId => {
+        if (mentionedUserId === userId) return null;
+        return {
+          userId: mentionedUserId,
+          message: `You were mentioned in task: "${task.title}"`,
+          type: "MENTION",
+          projectId: task.projectId,
+          metadata: {
+            taskId: task._id,
+            senderId: userId,
+            activityId: activity._id
+          }
+        };
+      }).filter(Boolean);
+
+      if (mentionNotifications.length > 0) {
+        const savedNotes = await Notification.insertMany(mentionNotifications);
+        if (io) {
+          savedNotes.forEach(note => {
+            io.to(`user_${note.userId}`).emit("notification:new", note);
+          });
+        }
+      }
+    }
+
+    // Update last activity time
+    task.lastActivityAt = Date.now();
+    await task.save();
+
+    // Invalidate Cache
+    await redis.del(`tasks:project:${task.projectId}:all`);
+    await redis.del(`task:${task._id}`);
 
     // Emit Socket Event
     const io = req.app.get("io");
@@ -670,6 +821,16 @@ const addTaskActivity = async (req, res) => {
       io.to(`project_${task.projectId}`).emit("task:activity", activity);
       if (type === 'UPLOAD') {
         io.to(`project_${task.projectId}`).emit("task:updated", task);
+      }
+
+      // ⚡ Notify Assignees (for Dashboard/My Tasks updates)
+      // Only notify if they are NOT the one sending the message
+      if (task.assignees && task.assignees.length > 0) {
+        task.assignees.forEach(assigneeId => {
+          if (assigneeId !== userId) {
+            io.to(`user_${assigneeId}`).emit("task:activity", activity);
+          }
+        });
       }
     }
 
@@ -691,6 +852,25 @@ const getTaskActivities = async (req, res) => {
   }
 };
 
+// 👇 NEW: Mark Task as Read
+const markTaskRead = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.auth;
+
+    await TaskReadStatus.findOneAndUpdate(
+      { userId, taskId: id },
+      { lastReadAt: Date.now() },
+      { upsert: true, new: true }
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Mark Read Error:", error);
+    res.status(500).json({ message: "Failed to mark as read" });
+  }
+};
+
 export {
   getTasks,
   createTask,
@@ -704,5 +884,6 @@ export {
   disapproveTask,
   deleteExpiredTasks,
   addTaskActivity,
-  getTaskActivities
+  getTaskActivities,
+  markTaskRead
 };
