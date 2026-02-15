@@ -185,19 +185,19 @@ const Dashboard = () => {
     <PageTransition>
       <div className="space-y-8">
         {/* Header */}
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-0">
           <div>
             <h1 className="text-2xl font-bold">
               Welcome back, {user?.firstName}
             </h1>
-            <p className="text-neutral-400 mt-1">
+            <p className="text-neutral-400 mt-1 text-sm md:text-base">
               Here's what's happening with your projects today.
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 w-full md:w-auto">
             {/* Availability Status Toggle */}
-            <div className="flex items-center gap-3 bg-neutral-900 border border-neutral-800 px-4 py-2 rounded-lg">
+            <div className="flex flex-1 md:flex-none items-center justify-between md:justify-start gap-3 bg-neutral-900 border border-neutral-800 px-4 py-2 rounded-lg">
               <div className="flex items-center gap-2">
                 <div className={`w-2 h-2 rounded-full ${userStatus === "active" ? "bg-green-500" : "bg-red-500"}`}></div>
                 <span className="text-sm font-medium">
@@ -223,7 +223,7 @@ const Dashboard = () => {
             {/* Profile Photo - Clickable */}
             <button
               onClick={() => navigate("/settings")}
-              className="relative group"
+              className="relative group shrink-0"
               title="My Profile"
             >
               <img
@@ -231,10 +231,6 @@ const Dashboard = () => {
                 alt={user?.firstName || "Profile"}
                 className="w-10 h-10 rounded-full border-2 border-neutral-700 hover:border-blue-500 transition-colors cursor-pointer object-cover"
               />
-              {/* Tooltip on hover */}
-              <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-neutral-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                My Profile
-              </span>
             </button>
           </div>
         </div>
@@ -295,8 +291,10 @@ const Dashboard = () => {
 
             <div className="space-y-4">
               {loading ? (
-                <div className="text-neutral-500 text-sm">
-                  Loading projects...
+                <div className="space-y-4 animate-pulse">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="bg-neutral-900 border border-neutral-800 rounded-xl p-5 h-32"></div>
+                  ))}
                 </div>
               ) : projects.length > 0 ? (
                 projects.slice(0, 3).map((project) => (

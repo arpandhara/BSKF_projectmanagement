@@ -147,40 +147,40 @@ const ProjectEvents = () => {
   if (loading) return <div className="p-8 text-center text-neutral-500 animate-pulse">Loading calendar...</div>;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[600px]">
+    <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6 h-auto lg:h-[600px]">
         {/* Calendar Column */}
-        <div className="lg:col-span-2 flex flex-col h-full bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden shadow-sm">
+        <div className="lg:col-span-2 flex flex-col h-auto lg:h-full bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden shadow-sm order-2 lg:order-1">
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-neutral-800 bg-neutral-900/50 backdrop-blur-sm">
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-neutral-800 bg-neutral-900/50 backdrop-blur-sm">
                 <div>
-                    <h2 className="text-2xl font-bold text-white">
+                    <h2 className="text-xl sm:text-2xl font-bold text-white">
                         {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
                     </h2>
-                    <p className="text-neutral-400 text-sm">Organize your team meetings and deadlines</p>
+                    <p className="text-neutral-400 text-xs sm:text-sm">Organize your team meetings and deadlines</p>
                 </div>
                 <div className="flex items-center gap-2 bg-neutral-800 p-1 rounded-lg border border-neutral-700">
-                    <button onClick={prevMonth} className="p-2 hover:bg-neutral-700 rounded-md text-neutral-300 hover:text-white transition-colors">
-                        <ChevronLeft size={20} />
+                    <button onClick={prevMonth} className="p-1.5 sm:p-2 hover:bg-neutral-700 rounded-md text-neutral-300 hover:text-white transition-colors">
+                        <ChevronLeft size={18} />
                     </button>
-                    <button onClick={() => setCurrentDate(new Date())} className="px-3 py-1.5 text-sm font-medium hover:bg-neutral-700 rounded-md text-neutral-300 hover:text-white transition-colors">
+                    <button onClick={() => setCurrentDate(new Date())} className="px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-medium hover:bg-neutral-700 rounded-md text-neutral-300 hover:text-white transition-colors">
                         Today
                     </button>
-                    <button onClick={nextMonth} className="p-2 hover:bg-neutral-700 rounded-md text-neutral-300 hover:text-white transition-colors">
-                        <ChevronRight size={20} />
+                    <button onClick={nextMonth} className="p-1.5 sm:p-2 hover:bg-neutral-700 rounded-md text-neutral-300 hover:text-white transition-colors">
+                        <ChevronRight size={18} />
                     </button>
                 </div>
             </div>
 
             {/* Grid */}
-            <div className="flex-1 p-6">
-                <div className="grid grid-cols-7 mb-4">
+            <div className="flex-1 p-3 sm:p-6">
+                <div className="grid grid-cols-7 mb-2 sm:mb-4">
                     {weeks.map(day => (
-                        <div key={day} className="text-center text-sm font-medium text-neutral-500 uppercase tracking-wider py-2">
+                        <div key={day} className="text-center text-xs sm:text-sm font-medium text-neutral-500 uppercase tracking-wider py-2">
                             {day}
                         </div>
                     ))}
                 </div>
-                <div className="grid grid-cols-7 grid-rows-6 gap-2 h-full">
+                <div className="grid grid-cols-7 auto-rows-[minmax(50px,1fr)] lg:grid-rows-6 gap-1 sm:gap-2 h-auto lg:h-full">
                     {days.map((day, idx) => {
                         const dayEvents = getEventsForDay(day);
                         const isSelected = isSameDay(day, selectedDate);
@@ -223,7 +223,7 @@ const ProjectEvents = () => {
         </div>
 
         {/* Sidebar: Selected Date Details */}
-        <div className="flex flex-col gap-6 h-full">
+        <div className="flex flex-col gap-6 h-auto lg:h-full order-1 lg:order-2">
             {/* Action Card */}
             {isAdmin && (
                 <div className="p-5 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl shadow-lg border border-blue-500/20 relative overflow-hidden group">

@@ -64,11 +64,11 @@ const ProjectMembersModal = ({
   return (
     <div 
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-4 bg-black/60 backdrop-blur-sm"
     >
       <div 
         ref={modalRef}
-        className="bg-neutral-900 border border-neutral-800 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh]"
+        className="bg-neutral-900 border border-neutral-800 rounded-t-2xl sm:rounded-xl shadow-2xl w-full sm:w-full max-w-2xl overflow-hidden flex flex-col h-[90dvh] sm:h-auto sm:max-h-[85vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -122,8 +122,8 @@ const ProjectMembersModal = ({
                       inProject ? "bg-blue-600/5 hover:bg-blue-600/10" : "hover:bg-neutral-800"
                     }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="relative">
+                    <div className="flex-1 min-w-0 flex items-center gap-3 mr-3">
+                      <div className="relative shrink-0">
                         <img 
                           src={mem.publicUserData.imageUrl} 
                           alt={mem.publicUserData.firstName}
@@ -135,23 +135,23 @@ const ProjectMembersModal = ({
                             </div>
                         )}
                       </div>
-                      <div>
-                        <h3 className="font-medium text-white flex items-center gap-2">
-                          {mem.publicUserData.firstName} {mem.publicUserData.lastName}
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-medium text-white flex items-center gap-2 truncate">
+                          <span className="truncate">{mem.publicUserData.firstName} {mem.publicUserData.lastName}</span>
                           {mem.publicUserData.userId === projectId.ownerId && (
-                            <span className="text-[10px] bg-yellow-500/20 text-yellow-500 px-1.5 py-0.5 rounded border border-yellow-500/30">OWNER</span>
+                            <span className="shrink-0 text-[10px] bg-yellow-500/20 text-yellow-500 px-1.5 py-0.5 rounded border border-yellow-500/30">OWNER</span>
                           )}
                           {isAdmin && (
-                            <span className="text-[10px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded border border-purple-500/30">ADMIN</span>
+                            <span className="shrink-0 text-[10px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded border border-purple-500/30">ADMIN</span>
                           )}
                         </h3>
-                        <p className="text-sm text-neutral-400">{mem.publicUserData.identifier}</p>
+                        <p className="text-sm text-neutral-400 truncate">{mem.publicUserData.identifier}</p>
                       </div>
                     </div>
 
                     <button
                       onClick={() => handleToggleMember(mem)}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      className={`shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                         inProject
                           ? "bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white border border-red-500/20"
                           : "bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20"

@@ -16,7 +16,7 @@ function AppLayout() {
       </div>
 
       {/* Main Content */}
-      <main className="flex-1 p-4 md:p-8 overflow-y-auto h-screen w-full mix-blend-normal pb-24 md:pb-8">
+      <main className="flex-1 p-4 md:p-8 w-full mix-blend-normal pb-24 md:pb-8 md:h-screen md:overflow-y-auto">
         <Outlet />
       </main>
 

@@ -301,16 +301,27 @@ const ProjectDetails = () => {
 
   if (loading)
     return (
-      <div className="p-8 text-neutral-400">Loading project details...</div>
+      <div className="space-y-6 pb-20 p-4 md:p-0 animate-pulse">
+         <div className="flex justify-between items-center">
+             <div className="h-8 w-48 bg-neutral-800 rounded-lg"></div>
+             <div className="h-10 w-32 bg-neutral-800 rounded-lg hidden md:block"></div>
+         </div>
+         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+             {[...Array(4)].map((_, i) => (
+                 <div key={i} className="h-24 bg-neutral-900 border border-neutral-800 rounded-xl"></div>
+             ))}
+         </div>
+         <div className="h-96 bg-neutral-900 border border-neutral-800 rounded-xl"></div>
+      </div>
     );
   if (!project)
     return <div className="p-8 text-neutral-400">Project not found</div>;
 
   return (
     <PageTransition>
-      <div className="space-y-6">
+      <div className="space-y-6 pb-20 md:pb-0"> 
         {/* Header & Actions */}
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate("/projects")}
@@ -331,7 +342,7 @@ const ProjectDetails = () => {
           {isAdmin && activeTab === "tasks" && (
             <button
               onClick={() => setIsTaskModalOpen(true)}
-              className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 transition-colors"
+              className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 transition-colors w-full md:w-auto justify-center"
             >
               <Plus size={16} /> New Task
             </button>
@@ -339,7 +350,7 @@ const ProjectDetails = () => {
         </div>
 
         {/* Stats Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
           <ProjectStat label="Total Tasks" value={tasks.length} Icon={Zap} />
           <ProjectStat
             label="Completed"
@@ -362,7 +373,7 @@ const ProjectDetails = () => {
         </div>
 
         {/* Team Section */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
+        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 md:p-6">
           <div className="flex justify-between items-start mb-4">
             <h2 className="text-lg font-bold flex items-center gap-2">
               <Users size={18} /> Project Team
@@ -407,7 +418,7 @@ const ProjectDetails = () => {
         />
 
         {/* Tabs */}
-        <div className="border-b border-neutral-800 flex gap-6 text-sm">
+        <div className="border-b border-neutral-800 flex gap-6 text-sm overflow-x-auto">
           <TabButton
             active={activeTab === "tasks"}
             onClick={() => setActiveTab("tasks")}
@@ -421,10 +432,10 @@ const ProjectDetails = () => {
             label="Calendar"
           />
 
-          {/* Settings Button: Removed isAdmin check so it always appears */}
+          {/* Settings Button */}
           <button
             onClick={() => navigate(`/projects/${id}/settings`)}
-            className="flex items-center gap-2 pb-3 border-b-2 border-transparent text-neutral-400 hover:text-white ml-auto transition-colors"
+            className="flex items-center gap-2 pb-3 border-b-2 border-transparent text-neutral-400 hover:text-white ml-auto transition-colors whitespace-nowrap"
           >
             <Settings size={16} /> Settings
           </button>
@@ -434,7 +445,7 @@ const ProjectDetails = () => {
         {activeTab === "tasks" ? (
           <>
             {/* Filter Row */}
-            <div className="flex flex-wrap gap-3 py-2">
+            <div className="flex flex-wrap gap-2 md:gap-3 py-2">
               <FilterDropdown
                 label="Status"
                 options={statusOptions}
@@ -482,7 +493,8 @@ const ProjectDetails = () => {
             </div>
 
             <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
-              <div className="grid grid-cols-12 gap-4 p-4 border-b border-neutral-800 text-xs font-bold text-neutral-500 uppercase tracking-wider">
+              {/* DESKTOP HEADER (Hidden on Mobile) */}
+              <div className="hidden md:grid grid-cols-12 gap-4 p-4 border-b border-neutral-800 text-xs font-bold text-neutral-500 uppercase tracking-wider">
                 <div className="col-span-5">Title</div>
                 <div className="col-span-2">Type</div>
                 <div className="col-span-1">Priority</div>
@@ -497,89 +509,155 @@ const ProjectDetails = () => {
                     <div
                       key={task._id}
                       onClick={() => navigate(`/tasks/${task._id}`)}
-                      className="grid grid-cols-12 gap-4 p-4 border-b border-neutral-800/50 hover:bg-neutral-800/50 transition-colors items-center text-sm last:border-0 cursor-pointer"
+                      className="group border-b border-neutral-800/50 hover:bg-neutral-800/50 transition-colors cursor-pointer last:border-0"
                     >
-                      {/* Title & Color Dot */}
-                      <div className="col-span-5 flex items-center gap-3">
-                        <div
-                          className={`w-2 h-2 rounded-full ${
-                            task.type === "OTHER"
-                              ? "bg-orange-400"
-                              : "bg-green-400"
-                          }`}
-                        ></div>
-                        <span className="font-medium text-white truncate">
-                          {task.title}
-                        </span>
-                        {/* Chat Indicator */}
-                         <div className="relative flex items-center justify-center w-6 h-6 shrink-0 group/chat">
-                            <MessageSquare 
-                               size={14} 
-                               className={`transition-colors ${task.hasUnread ? "text-white" : "text-neutral-600 group-hover/chat:text-neutral-400"}`} 
-                            />
+                      {/* DESKTOP ROW LAYOUT */}
+                      <div className="hidden md:grid grid-cols-12 gap-4 p-4 items-center text-sm">
+                        {/* Title & Color Dot */}
+                        <div className="col-span-5 flex items-center gap-3">
+                          <div
+                            className={`w-2 h-2 rounded-full ${
+                              task.type === "OTHER"
+                                ? "bg-orange-400"
+                                : "bg-green-400"
+                            }`}
+                          ></div>
+                          <span className="font-medium text-white truncate">
+                            {task.title}
+                          </span>
+                           <div className="relative flex items-center justify-center w-6 h-6 shrink-0 group/chat">
+                              <MessageSquare 
+                                 size={14} 
+                                 className={`transition-colors ${task.hasUnread ? "text-white" : "text-neutral-600 group-hover/chat:text-neutral-400"}`} 
+                              />
+                              {task.hasUnread && (
+                                 <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full border border-[#0b141a]"></span>
+                              )}
+                           </div>
+                        </div>
+
+                        {/* Type Badge */}
+                        <div className="col-span-2">
+                          <span className="flex items-center gap-1.5 text-xs font-medium uppercase text-neutral-400 border border-neutral-800 bg-neutral-800/50 px-2 py-0.5 rounded w-fit">
+                            <LayoutList size={12} />
+                            {task.type ? task.type.replace("_", " ") : "TASK"}
+                          </span>
+                        </div>
+
+                        {/* Priority */}
+                        <div className="col-span-1">
+                          <span
+                            className={`text-xs font-bold px-2 py-1 rounded ${
+                              task.priority === "HIGH"
+                                ? "bg-green-500/20 text-green-400"
+                                : "bg-blue-500/20 text-blue-400"
+                            }`}
+                          >
+                            {task.priority}
+                          </span>
+                        </div>
+
+                        {/* Status */}
+                        <div className="col-span-1 text-neutral-300">
+                          {task.status}
+                        </div>
+
+                        {/* Multiple Assignees Rendering */}
+                        <div className="col-span-2 flex items-center gap-1">
+                          {task.assignees && task.assignees.length > 0 ? (
+                            <div className="flex -space-x-2 overflow-hidden">
+                              {task.assignees.map((assigneeId) => {
+                                const member = memberMap[assigneeId];
+                                if (!member) return null;
+                                return (
+                                  <img
+                                    key={assigneeId}
+                                    src={member.photo}
+                                    className="inline-block h-6 w-6 rounded-full ring-2 ring-neutral-900 bg-neutral-800 object-cover"
+                                    alt={member.firstName}
+                                    title={`${member.firstName} ${member.lastName}`}
+                                  />
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <span className="text-neutral-500 text-xs">
+                              Unassigned
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Due Date */}
+                        <div className="col-span-1 text-right text-neutral-400 text-xs">
+                          {task.dueDate
+                            ? new Date(task.dueDate).toLocaleDateString()
+                            : "-"}
+                        </div>
+                      </div>
+
+                      {/* MOBILE CARD LAYOUT */}
+                      <div className="md:hidden p-4 space-y-3">
+                         <div className="flex justify-between items-start">
+                            <div className="flex items-start gap-3">
+                              <div
+                                  className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${
+                                    task.type === "OTHER"
+                                      ? "bg-orange-400"
+                                      : "bg-green-400"
+                                  }`}
+                              ></div>
+                              <div>
+                                 <h3 className="font-medium text-white text-base leading-tight mb-1">{task.title}</h3>
+                                 <div className="flex items-center gap-2 text-xs text-neutral-500">
+                                   <span>{task.type ? task.type.replace("_", " ") : "TASK"}</span>
+                                   <span>•</span>
+                                   <span>{task.dueDate ? new Date(task.dueDate).toLocaleDateString() : "No Date"}</span>
+                                 </div>
+                              </div>
+                            </div>
                             {task.hasUnread && (
-                               <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full border border-[#0b141a]"></span>
+                               <div className="w-2 h-2 bg-red-500 rounded-full"></div>
                             )}
+                         </div>
+
+                         <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                               <span
+                                  className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                                    task.priority === "HIGH"
+                                      ? "bg-green-500/20 text-green-400"
+                                      : "bg-blue-500/20 text-blue-400"
+                                  }`}
+                                >
+                                  {task.priority || "MEDIUM"}
+                                </span>
+                                <span className={`text-[10px] font-medium px-2 py-0.5 rounded bg-neutral-800 text-neutral-400`}>
+                                   {task.status}
+                                </span>
+                            </div>
+
+                            {/* Assignees */}
+                             <div className="flex -space-x-2 overflow-hidden">
+                                {task.assignees && task.assignees.length > 0 ? (
+                                   task.assignees.map((assigneeId) => {
+                                      const member = memberMap[assigneeId];
+                                      if (!member) return null;
+                                      return (
+                                        <img
+                                          key={assigneeId}
+                                          src={member.photo}
+                                          className="inline-block h-6 w-6 rounded-full ring-2 ring-neutral-900 bg-neutral-800 object-cover"
+                                          alt={member.firstName}
+                                        />
+                                      );
+                                    })
+                                ) : (
+                                  <span className="text-[10px] text-neutral-600">Unassigned</span>
+                                )}
+                             </div>
                          </div>
                       </div>
 
-                      {/* Type Badge */}
-                      <div className="col-span-2">
-                        <span className="flex items-center gap-1.5 text-xs font-medium uppercase text-neutral-400 border border-neutral-800 bg-neutral-800/50 px-2 py-0.5 rounded w-fit">
-                          <LayoutList size={12} />
-                          {task.type ? task.type.replace("_", " ") : "TASK"}
-                        </span>
-                      </div>
-
-                      {/* Priority */}
-                      <div className="col-span-1">
-                        <span
-                          className={`text-xs font-bold px-2 py-1 rounded ${
-                            task.priority === "HIGH"
-                              ? "bg-green-500/20 text-green-400"
-                              : "bg-blue-500/20 text-blue-400"
-                          }`}
-                        >
-                          {task.priority}
-                        </span>
-                      </div>
-
-                      {/* Status */}
-                      <div className="col-span-1 text-neutral-300">
-                        {task.status}
-                      </div>
-
-                      {/* Multiple Assignees Rendering */}
-                      <div className="col-span-2 flex items-center gap-1">
-                        {task.assignees && task.assignees.length > 0 ? (
-                          <div className="flex -space-x-2 overflow-hidden">
-                            {task.assignees.map((assigneeId) => {
-                              const member = memberMap[assigneeId];
-                              if (!member) return null;
-                              return (
-                                <img
-                                  key={assigneeId}
-                                  src={member.photo}
-                                  className="inline-block h-6 w-6 rounded-full ring-2 ring-neutral-900 bg-neutral-800 object-cover"
-                                  alt={member.firstName}
-                                  title={`${member.firstName} ${member.lastName}`}
-                                />
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <span className="text-neutral-500 text-xs">
-                            Unassigned
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Due Date */}
-                      <div className="col-span-1 text-right text-neutral-400 text-xs">
-                        {task.dueDate
-                          ? new Date(task.dueDate).toLocaleDateString()
-                          : "-"}
-                      </div>
                     </div>
                   ))
                 ) : (
@@ -605,6 +683,8 @@ const ProjectDetails = () => {
              queryClient.invalidateQueries(["project-tasks", id]);
           }}
         />
+
+
       </div>
     </PageTransition>
   );

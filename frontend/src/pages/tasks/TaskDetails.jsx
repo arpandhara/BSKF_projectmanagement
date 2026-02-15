@@ -390,12 +390,14 @@ const TaskDetails = () => {
              </button>
           </div>
         
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
              <button
                 onClick={() => navigate(`/tasks/${taskId}/chat`)}
-                className="flex items-center gap-2 bg-[#25D366] hover:bg-[#128C7E] text-white px-3 py-1.5 rounded-lg transition-colors text-sm font-medium relative"
+                className="flex items-center gap-2 bg-[#25D366] hover:bg-[#128C7E] text-white px-2 sm:px-3 py-1.5 rounded-lg transition-colors text-sm font-medium relative"
+                title="Open Chat"
              >
-                <MessageSquare size={16} /> Open Chat
+                <MessageSquare size={16} /> 
+                <span className="hidden sm:inline">Open Chat</span>
                 {task.hasUnread && (
                   <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-[#0b141a]"></span>
                 )}
@@ -404,9 +406,11 @@ const TaskDetails = () => {
              {isAdmin && (
                 <button
                 onClick={handleDeleteTask}
-                className="flex items-center gap-2 text-red-500 hover:text-red-400 px-3 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors text-sm font-medium"
+                className="flex items-center gap-2 text-red-500 hover:text-red-400 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors text-sm font-medium"
+                title="Delete Task"
                 >
-                <Trash2 size={16} /> Delete Task
+                <Trash2 size={16} /> 
+                <span className="hidden sm:inline">Delete Task</span>
                 </button>
              )}
           </div>
@@ -813,13 +817,13 @@ const TaskDetails = () => {
                         className="bg-neutral-900 border border-neutral-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-600"
                       />
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                       <select
                         value={newLink.type}
                         onChange={(e) =>
                           setNewLink({ ...newLink, type: e.target.value })
                         }
-                        className="bg-neutral-900 border border-neutral-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none cursor-pointer"
+                        className="bg-neutral-900 border border-neutral-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none cursor-pointer w-full sm:w-auto"
                       >
                         <option value="DOC">Doc</option>
                         <option value="GITHUB">GitHub</option>
@@ -828,7 +832,7 @@ const TaskDetails = () => {
                       <button
                         onClick={handleAddLink}
                         disabled={!newLink.name || !newLink.url}
-                        className="bg-blue-600 hover:bg-blue-500 text-white px-6 rounded-lg text-sm font-medium transition-colors flex-1 disabled:opacity-50"
+                        className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors w-full sm:w-auto sm:flex-1 disabled:opacity-50"
                       >
                         Add Link
                       </button>

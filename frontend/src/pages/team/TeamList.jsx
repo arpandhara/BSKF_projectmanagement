@@ -162,7 +162,20 @@ const TeamList = () => {
   });
 
   if (loading)
-    return <div className="p-8 text-neutral-400">Loading team...</div>;
+    return (
+      <div className="space-y-8 animate-pulse">
+        <div className="flex justify-between items-center">
+            <div className="h-8 w-32 bg-neutral-800 rounded-lg"></div>
+            <div className="h-10 w-32 bg-neutral-800 rounded-lg hidden md:block"></div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[...Array(3)].map((_, i) => (
+                <div key={i} className="h-32 bg-neutral-900 border border-neutral-800 rounded-xl"></div>
+            ))}
+        </div>
+        <div className="h-96 bg-neutral-900 border border-neutral-800 rounded-xl"></div>
+      </div>
+    );
 
   if (!organization) {
     return (
@@ -182,7 +195,7 @@ const TeamList = () => {
     <PageTransition>
       <div className="space-y-8">
         {/* Header */}
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h1 className="text-2xl font-bold">Team</h1>
             <p className="text-neutral-400 mt-1">
@@ -194,7 +207,7 @@ const TeamList = () => {
           {isAdmin && (
             <button
               onClick={() => setIsModalOpen(true)}
-              className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 transition-colors"
+              className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 transition-colors w-full md:w-auto justify-center"
             >
               <UserPlus size={16} /> Invite Member
             </button>

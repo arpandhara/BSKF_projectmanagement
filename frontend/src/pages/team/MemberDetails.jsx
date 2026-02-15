@@ -167,7 +167,7 @@ const MemberDetails = () => {
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
       {/* Profile Header */}
-      <div className="bg-neutral-900 border border-neutral-800 p-6 rounded-xl flex items-center justify-between">
+      <div className="bg-neutral-900 border border-neutral-800 p-6 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6 md:gap-0">
         <div className="flex items-center gap-4">
           <img
             src={currentMember.publicUserData.imageUrl}
@@ -178,7 +178,7 @@ const MemberDetails = () => {
             <h1 className="text-2xl font-bold text-white">
               {currentMember.publicUserData.firstName} {currentMember.publicUserData.lastName}
             </h1>
-            <p className="text-neutral-400">
+            <p className="text-neutral-400 break-all md:break-normal">
               {currentMember.publicUserData.identifier}
             </p>
             <span
@@ -195,18 +195,18 @@ const MemberDetails = () => {
 
         {/* Admin Actions */}
         {iAmAdmin && !isMe && (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2 w-full md:w-auto">
             {targetIsAdmin ? (
               <button
                 onClick={handleDemoteRequest}
-                className="bg-orange-600/10 text-orange-500 hover:bg-orange-600/20 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                className="bg-orange-600/10 text-orange-500 hover:bg-orange-600/20 px-4 py-2 rounded-lg text-sm font-medium transition-colors w-full md:w-auto text-center"
               >
                 Request Demotion
               </button>
             ) : (
               <button
                 onClick={handlePromote}
-                className="bg-green-600/10 text-green-500 hover:bg-green-600/20 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                className="bg-green-600/10 text-green-500 hover:bg-green-600/20 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 w-full md:w-auto"
               >
                 <Shield size={16} /> Promote to Admin
               </button>
@@ -214,7 +214,7 @@ const MemberDetails = () => {
 
             <button
               onClick={handleKick}
-              className="bg-red-600/10 text-red-500 hover:bg-red-600/20 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+              className="bg-red-600/10 text-red-500 hover:bg-red-600/20 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 w-full md:w-auto"
             >
               <Trash2 size={16} /> Remove from Org
             </button>

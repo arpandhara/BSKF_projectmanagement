@@ -5,6 +5,7 @@ import { useClerk } from "@clerk/clerk-react";
 import {
   ArrowLeft,
   Send,
+  Plus,
   Paperclip,
   MoreVertical,
   Check,
@@ -285,44 +286,40 @@ const TaskChatPage = () => {
     );
 
   return (
-    <div className="h-full flex flex-col bg-[#0b141a] relative overflow-hidden rounded-lg">
+    <div className="fixed inset-0 z-[100] md:static md:z-auto flex flex-col h-[100dvh] bg-[#0b141a] overscroll-none touch-pan-x">
       {/* Background Pattern */}
       <div className="absolute inset-0 opacity-[0.06] pointer-events-none bg-[url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')]">
       </div>
 
       {/* Header */}
-      <div className="bg-[#202c33] px-4 py-2.5 flex items-center gap-3 border-b border-[#2f3b43] z-20 shrink-0 shadow-sm">
+      <div className="bg-[#202c33] px-3 py-3 flex items-center gap-3 border-b border-[#2f3b43] z-20 shrink-0 shadow-sm safe-top">
         <button
           onClick={() => navigate(-1)}
-          className="text-[#d1d7db] hover:bg-[#374248] p-1.5 rounded-full transition-colors -ml-2"
+          className="text-[#d1d7db] hover:bg-[#374248] p-2 rounded-full transition-colors -ml-1"
         >
           <ArrowLeft size={22} />
         </button>
         
         <div className="flex items-center gap-3 flex-1 min-w-0">
-           <div className="w-10 h-10 rounded-full bg-[#6a7175] flex items-center justify-center text-white font-bold shrink-0">
+           <div className="w-10 h-10 rounded-full bg-[#6a7175] flex items-center justify-center text-white font-bold shrink-0 text-lg">
               {task?.title?.charAt(0).toUpperCase()}
            </div>
            <div className="flex-1 min-w-0">
-             <h1 className="text-[#e9edef] font-medium truncate text-base leading-tight">{task?.title}</h1>
-             <p className="text-xs text-[#8696a0] truncate mt-0.5">
+             <h1 className="text-[#e9edef] font-medium truncate text-base leading-snug">{task?.title}</h1>
+             <p className="text-xs text-[#8696a0] truncate">
                {task?.assignees?.map((a) => a.fullName).join(", ")}
              </p>
            </div>
         </div>
-
-        <div className="flex items-center gap-3 text-[#aebac1]">
-           {/* Menu Removed */}
-        </div>
       </div>
 
       {/* Chat Area */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-6 custom-scrollbar z-10">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-4 custom-scrollbar z-10 scroll-smooth">
         {Object.entries(groupedActivities).map(([date, msgs]) => (
            <div key={date} className="space-y-1">
               {/* Date Header */}
-              <div className="flex justify-center mb-4 sticky top-0 z-10">
-                 <span className="bg-[#1f2c33] text-[#8696a0] text-[11px] font-medium px-4 py-1.5 rounded-lg shadow-sm border border-[#2f3b43]/50 backdrop-blur-sm">
+              <div className="flex justify-center mb-4 sticky top-2 z-10">
+                 <span className="bg-[#1f2c33] text-[#8696a0] text-[11px] font-medium px-4 py-1.5 rounded-lg shadow-sm border border-[#2f3b43]/50 backdrop-blur-sm opacity-90">
                     {formatDateHeader(date)}
                  </span>
               </div>
@@ -334,7 +331,7 @@ const TaskChatPage = () => {
                  if (isSystem) {
                     return (
                        <div key={msg._id || idx} className="flex justify-center my-3">
-                          <span className="bg-[#1f2c33]/80 text-[#8696a0] text-xs px-3 py-1 rounded-lg border border-[#2f3b43]">
+                          <span className="bg-[#1f2c33]/80 text-[#8696a0] text-xs px-3 py-1 rounded-lg border border-[#2f3b43] text-center max-w-[90%]">
                              {msg.content}
                           </span>
                        </div>
@@ -347,7 +344,7 @@ const TaskChatPage = () => {
                        className={`flex mb-1 items-end group ${isMe ? "justify-end" : "justify-start"}`}
                     >
                        {!isMe && (
-                          <div className="w-8 h-8 mr-2 mb-1 flex-shrink-0">
+                          <div className="w-7 h-7 mr-2 mb-1 flex-shrink-0">
                              <img 
                                 src={msg.userPhoto || "https://github.com/shadcn.png"} 
                                 alt={msg.userName}
@@ -359,13 +356,13 @@ const TaskChatPage = () => {
 
                        <div
                           className={`
-                             relative max-w-[85%] sm:max-w-[65%] px-2 py-1.5 shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]
+                             relative max-w-[85%] sm:max-w-[70%] px-2.5 py-1.5 shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]
                              ${isMe 
-                                ? "bg-[#005c4b] text-[#e9edef] rounded-lg rounded-tr-none" 
-                                : "bg-[#202c33] text-[#e9edef] rounded-lg rounded-tl-none"}
+                                ? "bg-[#005c4b] text-[#e9edef] rounded-xl rounded-tr-none" 
+                                : "bg-[#202c33] text-[#e9edef] rounded-xl rounded-tl-none"}
                           `}
                        >
-                          {/* Triangle for bubbles */}
+                          {/* Triangle for bubbles - Hidden on mobile for simpler look or kept? Kept for WhatsApp feel */}
                           {isMe ? (
                              <span className="absolute top-0 -right-2 w-0 h-0 border-t-[10px] border-t-[#005c4b] border-r-[10px] border-r-transparent rotate-90" />
                           ) : (
@@ -374,13 +371,13 @@ const TaskChatPage = () => {
 
                           {/* Sender Name (only for others) */}
                           {!isMe && (
-                             <span className="text-[12px] font-medium text-[#f5c345] mb-1 block px-1">
+                             <span className="text-[12px] font-medium text-[#f5c345] mb-0.5 block px-0.5">
                                 {msg.userName}
                              </span>
                           )}
 
                           {/* Content */}
-                          <div className={`px-1 ${msg.type === "UPLOAD" ? "pb-1" : ""}`}>
+                          <div className={`px-0.5 ${msg.type === "UPLOAD" ? "pb-1" : ""}`}>
                              {msg.type === "UPLOAD" && (
                              <div className="mb-1">
                                 {msg.metadata?.fileType === "IMAGE" ? (
@@ -388,7 +385,7 @@ const TaskChatPage = () => {
                                       <img
                                       src={msg.metadata.fileUrl}
                                       alt={msg.metadata.fileName}
-                                      className="rounded-lg w-full max-h-72 object-cover border border-black/10"
+                                      className="rounded-lg w-full max-h-64 object-cover border border-black/10"
                                       />
                                    </a>
                                 ) : (
@@ -396,9 +393,9 @@ const TaskChatPage = () => {
                                       href={msg.metadata?.fileUrl}
                                       target="_blank"
                                       rel="noreferrer"
-                                      className="flex items-center gap-3 bg-black/20 p-3 rounded-md hover:bg-black/30 transition-colors border border-white/5"
+                                      className="flex items-center gap-3 bg-black/20 p-2.5 rounded-md hover:bg-black/30 transition-colors border border-white/5"
                                    >
-                                      <div className="bg-[#2a3942] p-2.5 rounded text-[#8696a0]">
+                                      <div className="bg-[#2a3942] p-2 rounded text-[#8696a0]">
                                        <FileText size={20} />
                                       </div>
                                       <div className="flex-1 min-w-0">
@@ -408,13 +405,13 @@ const TaskChatPage = () => {
                                    </a>
                                 )}
                                 {msg.content !== "Shared a file" && (
-                                   <p className="mt-2 text-sm whitespace-pre-wrap">{msg.content}</p>
+                                   <p className="mt-2 text-[15px] whitespace-pre-wrap">{msg.content}</p>
                                 )}
                              </div>
                              )}
 
                              {msg.type === "COMMENT" && (
-                             <p className="text-[14.5px] leading-[19px] whitespace-pre-wrap">
+                             <p className="text-[15px] leading-snug whitespace-pre-wrap break-words">
                                 {msg.content}
                              </p>
                              )}
@@ -422,22 +419,12 @@ const TaskChatPage = () => {
 
                           {/* Meta (Time + Status) */}
                           <div className={`flex items-center justify-end gap-1 mt-1 select-none ${isMe ? "text-[#87b4ac]" : "text-[#8696a0]"}`}>
-                             <span className="text-[11px] min-w-fit font-medium">
+                             <span className="text-[10px] min-w-fit font-medium">
                              {formatTime(msg.createdAt)}
                              </span>
-                             {isMe && <CheckCheck size={15} className={idx === msgs.length - 1 ? "text-[#53bdeb]" : ""} />}
+                             {isMe && <CheckCheck size={14} className={idx === msgs.length - 1 ? "text-[#53bdeb]" : ""} />}
                           </div>
                        </div>
-
-                       {isMe && (
-                          <div className="w-8 h-8 ml-2 mb-1 flex-shrink-0">
-                             <img 
-                                src={user?.imageUrl || "https://github.com/shadcn.png"} 
-                                alt="Me"
-                                className="w-full h-full rounded-full object-cover border border-[#2f3b43] shadow-sm"
-                             />
-                          </div>
-                       )}
                     </div>
                  );
               })}
@@ -447,10 +434,10 @@ const TaskChatPage = () => {
       </div>
 
       {/* Input Area */}
-      <div className="bg-[#202c33] px-3 py-2 flex items-end gap-2 z-20 shrink-0 select-none relative">
+      <div className="bg-[#202c33] px-2 py-2 flex items-end gap-2 z-20 shrink-0 select-none pb-safe">
         {/* Mention Popup */}
         {showMentions && filteredUsers.length > 0 && (
-          <div className="absolute bottom-full left-4 mb-2 w-64 bg-[#233138] rounded-lg shadow-xl z-50 overflow-hidden border border-[#233138]">
+          <div className="absolute bottom-full left-2 mb-2 w-64 bg-[#233138] rounded-lg shadow-xl z-50 overflow-hidden border border-[#233138]">
              <div className="bg-[#111b21] px-3 py-2 text-xs font-medium text-[#8696a0] uppercase tracking-wider">
                 Mention Member
              </div>
@@ -476,12 +463,34 @@ const TaskChatPage = () => {
           </div>
         )}
 
-        <div className="flex-1 bg-[#2a3942] rounded-xl flex items-end mb-1 border border-[#2a3942] focus-within:border-[#8696a0]/50 transition-colors">
+        {/* Input Container */}
+        <div className="flex-1 bg-[#2a3942] rounded-2xl flex items-end border-none outline-none ring-0 focus-within:ring-0 focus-within:outline-none focus-within:border-none transition-colors py-1">
+          {/* File Actions (Visible inside or outside? Inside saves vertical space) */}
+          <div className="flex items-end pl-1 pb-1">
+              <button
+                 onClick={() => fileInputRef.current?.click()}
+                 className="p-2 text-[#8696a0] hover:text-[#cfd4d8] transition-colors rounded-full hover:bg-[#374248]"
+              >
+                  {isUploading ? (
+                     <div className="w-5 h-5 border-2 border-[#8696a0] border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                     <Plus size={20} className="stroke-2" />
+                  )}
+               </button>
+               {/* Hidden file input */}
+               <input
+                   type="file"
+                   ref={fileInputRef}
+                   className="hidden"
+                   onChange={handleFileUpload}
+               />
+          </div>
+
           <textarea
             value={messageText}
             onChange={handleInputChange}
-            placeholder="Type a message (@ to mention)"
-            className="w-full bg-transparent border-none text-[#d1d7db] placeholder-[#8696a0] px-4 py-3 max-h-32 focus:ring-0 resize-none custom-scrollbar text-[15px] leading-relaxed"
+            placeholder="Message"
+            className="flex-1 bg-transparent border-none outline-none focus:outline-none focus:ring-0 focus:border-none text-[#d1d7db] placeholder-[#8696a0] px-2 py-2.5 max-h-32 resize-none custom-scrollbar text-[16px] leading-relaxed"
             rows={1}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
@@ -491,38 +500,18 @@ const TaskChatPage = () => {
             }}
             onClick={(e) => setCursorPos(e.target.selectionStart)}
           />
-           <input
-               type="file"
-               ref={fileInputRef}
-               className="hidden"
-               onChange={handleFileUpload}
-           />
-           <button
-            onClick={() => fileInputRef.current?.click()}
-             className="p-2.5 mr-1 mb-0.5 text-[#8696a0] hover:text-[#cfd4d8] transition-colors rounded-full hover:bg-[#374248]"
-           >
-              {isUploading ? (
-                 <div className="w-6 h-6 border-2 border-[#8696a0] border-t-transparent rounded-full animate-spin"></div>
-              ) : (
-                 <Paperclip size={22} />
-              )}
-           </button>
-           {messageText.trim().length === 0 && !isUploading && (
-              <button className="p-2.5 mr-1 mb-0.5 text-[#8696a0] hover:text-[#cfd4d8] transition-colors rounded-full hover:bg-[#374248]">
-                 <ImageIcon size={22} />
-              </button>
-           )}
         </div>
 
+        {/* Send Button */}
         <button
           onClick={messageText.trim() ? (e) => handleSendMessage(e) : undefined}
-          className={`p-3 rounded-full transition-all duration-200 shadow-md mb-1 flex items-center justify-center
+          className={`p-3 rounded-full transition-all duration-200 shadow-md mb-0.5 flex items-center justify-center shrink-0
              ${messageText.trim() 
                 ? "bg-[#00a884] text-white hover:bg-[#008f6f] cursor-pointer" 
                 : "bg-[#374248] text-[#8696a0] cursor-default"}
           `}
         >
-          <Send size={20} className={messageText.trim() ? "ml-0.5" : ""} />
+          {messageText.trim() ? <Send size={20} className="ml-0.5" /> : <div className="w-5 h-5" />} {/* Placeholder to keep size */}
         </button>
       </div>
     </div>
