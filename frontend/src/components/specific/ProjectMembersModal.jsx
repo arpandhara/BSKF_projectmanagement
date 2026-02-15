@@ -13,7 +13,7 @@ const ProjectMembersModal = ({
   onMemberToggled 
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [processingId, setProcessingId] = useState(null);
+
 
   const overlayRef = useRef(null);
   const modalRef = useRef(null);
@@ -113,7 +113,6 @@ const ProjectMembersModal = ({
               {filteredMembers.map((mem) => {
                 const clerkId = mem.publicUserData.userId;
                 const inProject = isMemberInProject(clerkId);
-                const isProcessing = processingId === clerkId;
                 const isAdmin = mem.role === "org:admin";
 
                 return (

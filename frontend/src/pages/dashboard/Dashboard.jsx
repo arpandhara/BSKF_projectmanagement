@@ -95,7 +95,7 @@ const Dashboard = () => {
     }
   }, [orgId, navigate]);
 
-  const fetchUserStatus = async () => {
+  const fetchUserStatus = React.useCallback(async () => {
     if (!user?.id) return;
     try {
       const res = await api.get(`/users/${user.id}/status`);
@@ -103,7 +103,7 @@ const Dashboard = () => {
     } catch (error) {
       console.error("Failed to fetch user status", error);
     }
-  };
+  }, [user?.id]);
 
   const handleStatusToggle = async () => {
     const oldStatus = userStatus;
@@ -167,7 +167,7 @@ const Dashboard = () => {
         socket.off("task:assigned", handleUpdate);
       }
     };
-  }, [orgId, user?.id, queryClient]);
+  }, [orgId, user?.id, queryClient, fetchUserStatus]);
 
   if (!orgId) return null; // Prevent flash of content before redirect
 

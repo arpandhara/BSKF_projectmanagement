@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAuth, useClerk } from "@clerk/clerk-react";
+import { useClerk } from "@clerk/clerk-react";
 import {
   ArrowLeft,
   Send,
@@ -48,7 +48,7 @@ const TaskChatPage = () => {
   });
 
   // 2. Fetch Activities (Messages)
-  const { data: activities = [], isLoading: loadingActivities } = useQuery({
+  const { data: activities = [] } = useQuery({
     queryKey: ["task-activities", taskId],
     queryFn: async () => {
       const res = await api.get(`/tasks/${taskId}/activity`);

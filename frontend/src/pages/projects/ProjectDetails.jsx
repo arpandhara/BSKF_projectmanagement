@@ -246,7 +246,7 @@ const ProjectDetails = () => {
       socket.off("project:member_removed", handleProjectMemberRemoved);
       socket.off("team:update", handleTeamUpdate);
     };
-  }, [id, user.id, project, queryClient]);
+  }, [id, user.id, project, queryClient, navigate]);
 
   // NEW: Remove member from project (admin only)
   // NEW: Remove member from project (admin only)

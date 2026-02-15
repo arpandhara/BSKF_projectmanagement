@@ -197,7 +197,7 @@ const TaskDetails = () => {
       socket.off("task:activity", handleNewActivity);
       socket.off("team:update", handleTeamUpdate);
     };
-  }, [taskId, projectId, queryClient, task]);
+  }, [taskId, projectId, queryClient, task, user.id]);
 
   // Actions
   const handleUpdate = (field, value) => {
@@ -207,6 +207,39 @@ const TaskDetails = () => {
   const handleDeleteTask = () => {
     if (!window.confirm("Are you sure you want to delete this task?")) return;
     deleteTaskMutation.mutate();
+  };
+
+  // --- File Upload Handler ---
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const toastId = toast.loading("Uploading file...");
+
+    try {
+      const { url, error } = await uploadFile(file);
+      if (error) throw error;
+      
+      const newAttachment = {
+          name: file.name,
+          url: url,
+          type: file.type.startsWith("image/") ? "IMAGE" : "DOC"
+      };
+      
+      // Update attachments via mutation
+      const updatedAttachments = [...(task.attachments || []), newAttachment];
+      handleUpdate("attachments", updatedAttachments);
+      
+      toast.success("File uploaded", { id: toastId });
+      setAttachmentMode("LINK");
+    } catch (error) {
+      console.error("Upload failed:", error);
+      toast.error("Failed to upload file", { id: toastId });
+    } finally {
+      setIsUploading(false);
+      if (attachmentFileRef.current) attachmentFileRef.current.value = "";
+    }
   };
 
 
@@ -256,7 +289,7 @@ const TaskDetails = () => {
       });
       return res.data;
     },
-    onMutate: async ({ actionType, comment }) => {
+    onMutate: async ({ actionType }) => {
       await queryClient.cancelQueries(["task", taskId]);
       await queryClient.cancelQueries(["task-activities", taskId]);
 
@@ -836,5 +869,7 @@ const TaskDetails = () => {
     </PageTransition>
   );
 };
+
+
 
 export default TaskDetails;
