@@ -66,12 +66,21 @@ const TaskChatPage = () => {
     if (task.ownerDetails && !list.some((u) => u.clerkId === task.ownerDetails.clerkId)) {
       list.push(task.ownerDetails);
     }
-    return list.filter((u) => u.clerkId !== user?.id);
+    // return list.filter((u) => u.clerkId !== user?.id);
+    return list; // Allow self-tagging for debug
   })();
 
   const filteredUsers = taggableUsers.filter((u) =>
     `${u.firstName} ${u.lastName}`.toLowerCase().includes(mentionQuery.toLowerCase())
   );
+
+  // Debugging Mention Logic
+  useEffect(() => {
+    console.log("DEBUG: taggableUsers:", taggableUsers);
+    console.log("DEBUG: filteredUsers:", filteredUsers);
+    console.log("DEBUG: showMentions:", showMentions);
+    console.log("DEBUG: mentionQuery:", mentionQuery);
+  }, [taggableUsers, filteredUsers, showMentions, mentionQuery]);
 
   // Scroll to bottom
   const scrollToBottom = (behavior = "smooth") => {
@@ -163,7 +172,7 @@ const TaskChatPage = () => {
     const mentions = [];
     taggableUsers.forEach((u) => {
       const name = `${u.firstName} ${u.lastName}`;
-      if (messageText.includes(`@${name}`)) {
+      if (messageText.toLowerCase().includes(`@${name.toLowerCase()}`)) {
         mentions.push(u.clerkId);
       }
     });
@@ -187,8 +196,10 @@ const TaskChatPage = () => {
     const lastAt = newValue.lastIndexOf("@", newCursorPos - 1);
     if (lastAt !== -1) {
       const query = newValue.slice(lastAt + 1, newCursorPos);
+      console.log("DEBUG: Detected potential mention. Query:", query);
       // Only trigger if no spaces in query (simple name search)
-      if (!query.includes(" ")) {
+      // ALLOW SPACES for full names like "John Doe"
+      if (query.length >= 0) { 
         setShowMentions(true);
         setMentionQuery(query);
         return;
@@ -434,31 +445,37 @@ const TaskChatPage = () => {
       </div>
 
       {/* Input Area */}
-      <div className="bg-[#202c33] px-2 py-2 flex items-end gap-2 z-20 shrink-0 select-none pb-safe">
+      <div className="bg-[#202c33] px-2 py-2 flex items-end gap-2 z-20 shrink-0 select-none pb-safe relative">
         {/* Mention Popup */}
-        {showMentions && filteredUsers.length > 0 && (
+        {showMentions && (
           <div className="absolute bottom-full left-2 mb-2 w-64 bg-[#233138] rounded-lg shadow-xl z-50 overflow-hidden border border-[#233138]">
              <div className="bg-[#111b21] px-3 py-2 text-xs font-medium text-[#8696a0] uppercase tracking-wider">
                 Mention Member
              </div>
              <div className="max-h-48 overflow-y-auto custom-scrollbar">
-               {filteredUsers.map(u => (
-                 <button
-                   key={u.clerkId}
-                   onClick={() => insertMention(u)}
-                   className="w-full flex items-center gap-3 px-4 py-2 hover:bg-[#111b21] transition-colors text-left"
-                 >
-                    <img 
-                      src={u.photo || "https://github.com/shadcn.png"} 
-                      className="w-8 h-8 rounded-full object-cover"
-                      alt={u.firstName}
-                    />
-                    <div>
-                       <p className="text-[#e9edef] text-sm font-medium">{u.firstName} {u.lastName}</p>
-                       <p className="text-[#8696a0] text-xs">@{u.firstName.toLowerCase()}</p>
-                    </div>
-                 </button>
-               ))}
+               {filteredUsers.length > 0 ? (
+                 filteredUsers.map(u => (
+                   <button
+                     key={u.clerkId}
+                     onClick={() => insertMention(u)}
+                     className="w-full flex items-center gap-3 px-4 py-2 hover:bg-[#111b21] transition-colors text-left"
+                   >
+                      <img 
+                        src={u.photo || "https://github.com/shadcn.png"} 
+                        className="w-8 h-8 rounded-full object-cover"
+                        alt={u.firstName}
+                      />
+                      <div>
+                         <p className="text-[#e9edef] text-sm font-medium">{u.firstName} {u.lastName}</p>
+                         <p className="text-[#8696a0] text-xs">@{u.firstName.toLowerCase()}</p>
+                      </div>
+                   </button>
+                 ))
+               ) : (
+                 <div className="px-4 py-3 text-[#8696a0] text-sm text-center">
+                   No members found
+                 </div>
+               )}
              </div>
           </div>
         )}

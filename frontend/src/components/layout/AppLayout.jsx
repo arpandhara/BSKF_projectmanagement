@@ -5,11 +5,15 @@ import BottomNav from "./BottomNav";
 import ToastContainer from "../common/ToastContainer";
 import { Menu } from "lucide-react";
 
+import NotificationToastListener from "../common/NotificationToastListener";
+
 function AppLayout() {
 
   return (
     <div className="flex min-h-screen bg-neutral-950 text-white relative">
       
+      <NotificationToastListener />
+
       {/* Desktop Sidebar (Hidden on Mobile) */}
       <div className="hidden md:flex">
         <Sidebar />
